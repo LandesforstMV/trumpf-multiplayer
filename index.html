@@ -9,12 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 
-<script>
-    // Simple diagnostic
-    window.addEventListener('load', function() {
-        console.log('Supabase global check:', typeof window.supabase, typeof (typeof supabase !== 'undefined' ? supabase : undefined));
-    });
-</script>
+
     <style>
         :root {
             --forstgrun: #154734;
@@ -623,8 +618,6 @@ let realtimePlayersChannel = null;
 
 function initSupabase() {
     try {
-        // Supabase CDN exposes a global `supabase` object with named exports
-        // CORRECT usage: const { createClient } = supabase
         let supabaseGlobal = null;
         if (typeof window !== 'undefined' && window.supabase) {
             supabaseGlobal = window.supabase;
@@ -634,31 +627,49 @@ function initSupabase() {
             supabaseGlobal = globalThis.supabase;
         }
 
-        console.log("Pruefe Supabase SDK...");
-        console.log("  window.supabase:", typeof window.supabase);
-        console.log("  global supabase:", typeof (typeof supabase !== 'undefined' ? supabase : undefined));
-        console.log("  Resolved keys:", supabaseGlobal ? Object.keys(supabaseGlobal).slice(0,10) : 'null');
+        console.log("=== initSupabase() called ===");
+        console.log("supabaseGlobal type:", typeof supabaseGlobal);
+        console.log("supabaseGlobal keys:", supabaseGlobal ? Object.keys(supabaseGlobal) : 'null');
+        console.log("createClient exists:", supabaseGlobal ? typeof supabaseGlobal.createClient : 'N/A');
 
-        if (supabaseGlobal && supabaseGlobal.createClient) {
-            const url = document.getElementById('supabase-url').value;
-            const key = document.getElementById('supabase-key').value;
-            if (url && key) {
-                // CORRECT: Destructure createClient from the supabase global
-                const { createClient } = supabaseGlobal;
-                sb = createClient(url, key, {
-                    realtime: { params: { eventsPerSecond: 10 } },
-                });
-                document.getElementById('config-status').textContent = '✅ Supabase verbunden';
-                console.log("Supabase verbunden!");
-                return true;
-            } else {
-                document.getElementById('config-status').textContent = '⚠️ URL oder Key fehlen';
-                console.warn("URL oder Key fehlen");
-            }
-        } else {
-            document.getElementById('config-status').textContent = '⏳ Supabase SDK wird geladen...';
-            console.log("Supabase SDK noch nicht verfuegbar");
+        if (!supabaseGlobal) {
+            console.log("supabaseGlobal is null/undefined");
+            return false;
         }
+        if (!supabaseGlobal.createClient) {
+            console.log("supabaseGlobal.createClient is missing");
+            return false;
+        }
+
+        const urlEl = document.getElementById('supabase-url');
+        const keyEl = document.getElementById('supabase-key');
+        console.log("URL element:", urlEl ? "found" : "NOT FOUND");
+        console.log("Key element:", keyEl ? "found" : "NOT FOUND");
+
+        if (!urlEl || !keyEl) {
+            document.getElementById('config-status').textContent = '⚠️ Config-Elemente nicht gefunden';
+            return false;
+        }
+
+        const url = urlEl.value;
+        const key = keyEl.value;
+        console.log("URL value:", url ? url.substring(0,30)+"..." : "EMPTY");
+        console.log("Key value:", key ? key.substring(0,30)+"..." : "EMPTY");
+
+        if (!url || !key) {
+            document.getElementById('config-status').textContent = '⚠️ URL oder Key fehlen';
+            return false;
+        }
+
+        const { createClient } = supabaseGlobal;
+        console.log("createClient destructured:", typeof createClient);
+        sb = createClient(url, key, {
+            realtime: { params: { eventsPerSecond: 10 } },
+        });
+        document.getElementById('config-status').textContent = '✅ Supabase verbunden';
+        console.log("Supabase verbunden!");
+        return true;
+
     } catch(e) {
         console.error("Supabase Fehler:", e);
         document.getElementById('config-status').textContent = '⚠️ Verbindungsfehler: ' + e.message;
@@ -1323,7 +1334,7 @@ function showRoundResult(room, players) {
     }
 }
 
-async async function playTurnMP(statIndex) {
+async function playTurnMP(statIndex) {
     if (!isMyTurn || !sb || !roomCode) return;
 
     const myCard = localPlayerDeck[0];
