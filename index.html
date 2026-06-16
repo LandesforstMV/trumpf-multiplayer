@@ -798,6 +798,7 @@ async function selectMode(mode) {
 
 async function showCreateRoom() {
     myPlayerName = getPlayerName();
+    gameMode = 'mp_host';
     if (!sb) {
         alert('Supabase ist nicht initialisiert. Bitte gib zuerst deine Supabase-Daten ein.');
         return;
@@ -1306,7 +1307,7 @@ function showRoundResult(room, players) {
     }
 }
 
-async function playTurnMP(statIndex) {
+async async function playTurnMP(statIndex) {
     if (!isMyTurn || !sb || !roomCode) return;
 
     const myCard = localPlayerDeck[0];
@@ -1438,9 +1439,9 @@ async function evaluateRound() {
                 .eq('id', winner);
 
             // Karten von Verlierern entfernen
-            players.forEach(async p => {
-                if (p.id === winner) return;
-                if (room.eliminated && room.eliminated.includes(p.id)) return;
+            for (const p of players) {
+                if (p.id === winner) continue;
+                if (room.eliminated && room.eliminated.includes(p.id)) continue;
                 const cards = p.cards || [];
                 if (cards.length > 0) {
                     const newCards = cards.slice(1);
@@ -1449,7 +1450,7 @@ async function evaluateRound() {
                         .update({ cards: newCards, card_count: newCards.length })
                         .eq('id', p.id);
                 }
-            });
+            }
 
             updates.last_move.winner = winner;
             updates.current_player = winner;
@@ -1486,6 +1487,10 @@ async function evaluateRound() {
 }
 
 async function nextRound() {
+    if (gameMode === 'cpu') {
+        nextRoundCPU();
+        return;
+    }
     if (!sb || !roomCode) return;
 
     try {
@@ -1605,6 +1610,7 @@ function playTurn(statIndex) {
         playTurnMP(statIndex);
         return;
     }
+    // CPU mode below
 
     if (!canPlay) return;
     canPlay = false;
@@ -1667,9 +1673,7 @@ function renderCPU() {
     lucide.createIcons();
 }
 
-function nextRoundMP() {
-    nextRound();
-}
+
 
 // ===== INIT =====
 window.addEventListener('load', () => {
