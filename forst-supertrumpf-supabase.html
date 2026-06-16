@@ -523,63 +523,16 @@
 
     <input type="text" id="player-name" class="player-name-input" placeholder="Dein Name" maxlength="15" value="">
 
-    <div class="config-panel" id="config-panel">
-        <h3>🔧 Supabase Konfiguration</h3>
-        <p>Deine Supabase-Daten werden lokal im Browser gespeichert und nie auf GitHub hochgeladen.</p>
-        <input type="text" id="supabase-url" class="api-key-input" placeholder="Supabase URL (z.B. https://xyz.supabase.co)" value="">
-        <input type="text" id="supabase-key" class="api-key-input" placeholder="Anon Key (z.B. eyJ...)" value="" style="margin-top:8px;">
-        <button class="start-btn" onclick="saveConfig()" style="min-width:200px; margin-top:10px;">💾 Speichern & Verbinden</button>
-        <div class="hint" id="config-status"></div>
-
-        <div class="warning-box" style="margin-top:15px;">
-            <strong>⚠️ Wichtig: Datenbank-Setup</strong><br>
-            Du musst zuerst diese Tabellen in Supabase erstellen (SQL Editor → New Query):
-        </div>
-        <div class="sql-setup-box" id="sql-setup">
--- 1. Raeume-Tabelle
-create table if not exists rooms (
-  code text primary key,
-  created_at timestamptz default now(),
-  status text default 'waiting',
-  host_id text,
-  current_player text,
-  round int default 1,
-  last_move jsonb,
-  winner text,
-  pot text[] default '{}',
-  eliminated text[] default '{}'
-);
-
--- 2. Spieler-Tabelle
-create table if not exists room_players (
-  id text primary key,
-  room_code text references rooms(code) on delete cascade,
-  name text not null,
-  is_host boolean default false,
-  joined_at timestamptz default now(),
-  cards text[] default '{}',
-  card_count int default 0,
-  active boolean default true
-);
-
--- 3. Realtime aktivieren
-alter publication supabase_realtime add table rooms;
-alter publication supabase_realtime add table room_players;
-
--- 4. RLS-Policies (offen fuer Demo)
-alter table rooms enable row level security;
-alter table room_players enable row level security;
-
-create policy "Allow all" on rooms for all using (true) with check (true);
-create policy "Allow all" on room_players for all using (true) with check (true);
-        </div>
+    <div class="config-panel" id="config-panel" style="display:none;">
+        <input type="hidden" id="supabase-url" value="https://tyfsafaidmyelzvxitfk.supabase.co">
+        <input type="hidden" id="supabase-key" value="sb_publishable_WX5gj7MDP-BwxuhDAvZHkQ_Qu6giFlH">
+        <div class="hint" id="config-status">Verbinde mit Supabase...</div>
     </div>
 
     <div class="mode-selection" id="mode-selection" style="display:none;">
         <button class="start-btn" onclick="selectMode('cpu')">🎮 Gegen CPU spielen</button>
         <button class="start-btn secondary" onclick="showCreateRoom()">🏠 Raum erstellen</button>
         <button class="start-btn secondary" onclick="showJoinRoom()">🔗 Raum beitreten</button>
-        <button class="start-btn danger" onclick="clearConfig()" style="min-width:200px; margin-top:15px; font-size:0.9rem;">🗑️ Supabase-Daten loeschen</button>
     </div>
 </div>
 
@@ -664,34 +617,16 @@ function saveConfig() {
     const url = document.getElementById('supabase-url').value.trim();
     const key = document.getElementById('supabase-key').value.trim();
 
-    if (!url || !key) {
-        document.getElementById('config-status').textContent = '❌ Bitte beide Felder ausfuellen!';
-        document.getElementById('config-status').style.color = '#ff6b6b';
-        return;
-    }
-
-    if (!url.startsWith('https://')) {
-        document.getElementById('config-status').textContent = '❌ URL muss mit https:// beginnen!';
-        document.getElementById('config-status').style.color = '#ff6b6b';
-        return;
-    }
-
     const config = { url, key };
 
     try {
         localStorage.setItem('trumpf_supabase_config', JSON.stringify(config));
-        document.getElementById('config-status').textContent = '✅ Gespeichert! Initialisiere Supabase...';
-        document.getElementById('config-status').style.color = '#91ae2d';
-
         initSupabase(config);
-
-        setTimeout(() => {
-            document.getElementById('config-panel').style.display = 'none';
-            document.getElementById('mode-selection').style.display = 'flex';
-        }, 1000);
+        document.getElementById('config-panel').style.display = 'none';
+        document.getElementById('mode-selection').style.display = 'flex';
     } catch(e) {
-        document.getElementById('config-status').textContent = '❌ Fehler: ' + e.message;
-        document.getElementById('config-status').style.color = '#ff6b6b';
+        console.error('Supabase Fehler:', e);
+        alert('Verbindungsfehler: ' + e.message);
     }
 }
 
@@ -720,15 +655,14 @@ function initSupabase(config) {
 }
 
 function checkStoredConfig() {
-    const stored = getStoredConfig();
-    if (stored && stored.url && stored.key) {
+    // Auto-connect mit hardcoded Werten
+    const url = document.getElementById('supabase-url').value;
+    const key = document.getElementById('supabase-key').value;
+
+    if (url && key) {
         document.getElementById('config-panel').style.display = 'none';
         document.getElementById('mode-selection').style.display = 'flex';
-        initSupabase(stored);
-    } else {
-        document.getElementById('config-panel').style.display = 'block';
-        document.getElementById('mode-selection').style.display = 'none';
-        document.getElementById('config-status').textContent = 'Gib deine Supabase URL und den Anon Key ein.';
+        initSupabase({ url, key });
     }
 }
 
