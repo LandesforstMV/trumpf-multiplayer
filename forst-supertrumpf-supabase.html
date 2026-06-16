@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Forst-Supertrumpf Multiplayer (Supabase)</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <style>
+        :root {
+            --forstgrun: #154734;
+            --sommergrun: #3e822c;
+            --fruhlingsgrun: #91ae2d;
+            --schwarz: #2d2a26;
+            --karten-bg: #f9faf8;
+            --akzent: #d4a017;
+            --sieg: #28a745;
+            --niederlage: #dc3545;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-image: linear-gradient(#3e822c 22%, #154734 80%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 5px;
+            overflow-x: hidden;
+            min-height: 100vh;
+            color: white;
+        }
+        #start-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--forstgrun);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            text-align: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #start-screen img {
+            width: 100%;
+            max-width: 300px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .start-btn {
+            padding: 16px 35px;
+            background-color: var(--fruhlingsgrun);
+            color: var(--forstgrun);
+            border: none;
+            border-radius: 50px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 5px 0 #6e8522;
+            margin: 8px;
+            min-width: 280px;
+            transition: transform 0.15s;
+        }
+        .start-btn:hover { transform: translateY(-2px); }
+        .start-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #6e8522; }
+        .start-btn.secondary {
+            background-color: var(--sommergrun);
+            color: white;
+            box-shadow: 0 5px 0 #2d5a1e;
+        }
+        .start-btn.secondary:active { box-shadow: 0 2px 0 #2d5a1e; }
+        .start-btn.danger {
+            background-color: var(--niederlage);
+            color: white;
+            box-shadow: 0 5px 0 #a71d2a;
+        }
+        .mode-selection {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .player-name-input, .api-key-input {
+            padding: 12px 20px;
+            border-radius: 50px;
+            border: 2px solid var(--fruhlingsgrun);
+            font-size: 1rem;
+            text-align: center;
+            margin-bottom: 10px;
+            width: 280px;
+            outline: none;
+        }
+        .api-key-input {
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .config-panel {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 400px;
+            width: 100%;
+            margin: 15px 0;
+            text-align: center;
+        }
+        .config-panel h3 {
+            margin: 0 0 15px 0;
+            color: var(--fruhlingsgrun);
+        }
+        .config-panel p {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .config-panel .hint {
+            font-size: 0.75rem;
+            color: #ccc;
+            margin-top: 10px;
+        }
+        #lobby-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+        .lobby-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .room-code-display {
+            font-size: 2.5rem;
+            font-weight: 900;
+            letter-spacing: 8px;
+            color: var(--fruhlingsgrun);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            margin: 10px 0;
+        }
+        #qrcode {
+            margin: 15px auto;
+            padding: 15px;
+            background: white;
+            border-radius: 15px;
+            display: inline-block;
+        }
+        #qrcode img { display: block; margin: 0 auto; }
+        .player-list { width: 100%; margin: 15px 0; }
+        .player-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+        .player-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: var(--fruhlingsgrun);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+            color: var(--forstgrun);
+        }
+        .player-name { flex-grow: 1; text-align: left; font-weight: 600; }
+        .player-status {
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: var(--sommergrun);
+        }
+        .player-status.host { background: var(--akzent); color: var(--schwarz); }
+        .share-url {
+            font-size: 0.8rem;
+            word-break: break-all;
+            color: #ccc;
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+        #join-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+        .code-inputs {
+            display: flex;
+            gap: 8px;
+            margin: 15px 0;
+        }
+        .code-input {
+            width: 50px;
+            height: 60px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-align: center;
+            border: 2px solid var(--fruhlingsgrun);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.9);
+            color: var(--forstgrun);
+            text-transform: uppercase;
+        }
+        .code-input:focus {
+            outline: none;
+            border-color: var(--akzent);
+            box-shadow: 0 0 10px rgba(212,160,23,0.3);
+        }
+        .game-board {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            max-width: 350px;
+            margin-top: 5px;
+        }
+        .deck-info {
+            margin: 5px auto 8px auto;
+            font-weight: bold;
+            color: #fff;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 6px 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .score-badge {
+            background: var(--forstgrun);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            min-width: 20px;
+            text-align: center;
+        }
+        .score-badge.pop { transform: scale(1.4); }
+        .card {
+            background-color: var(--karten-bg);
+            border-radius: 10px;
+            padding: 8px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+            color: var(--schwarz);
+        }
+        .card.opponent-hidden {
+            background: repeating-linear-gradient(45deg, var(--forstgrun), var(--forstgrun) 10px, #1a5a42 10px, #1a5a42 20px);
+            height: 83px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--forstgrun);
+        }
+        .card.opponent-hidden::after {
+            content: attr(data-opponent);
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 1px solid white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-align: center;
+            background: rgba(0,0,0,0.2);
+        }
+        .header {
+            background-color: var(--forstgrun);
+            color: white;
+            text-align: center;
+            padding: 4px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+        }
+        .header h2 { margin: 0; font-size: 15px; text-transform: uppercase; }
+        .portrait-container { display: flex; justify-content: center; margin-bottom: 6px; }
+        .portrait-circle {
+            width: 110px; height: 110px;
+            border-radius: 50%;
+            border: 2px solid var(--sommergrun);
+            background: #fff;
+            overflow: hidden;
+        }
+        .portrait-circle img { width: 100%; height: 100%; object-fit: cover; }
+        .stat-row {
+            margin-bottom: 3px;
+            padding: 6px;
+            border-radius: 5px;
+            background: white;
+            border: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .stat-row:hover:not(.disabled) { background: #f0f8e8; }
+        .stat-row.disabled { cursor: not-allowed; opacity: 0.6; }
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .stat-label-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .stat-icon {
+            width: 14px;
+            height: 14px;
+            stroke-width: 2.5;
+        }
+        .bar-container { background: #eee; height: 4px; border-radius: 2px; margin: 3px 0; }
+        .bar-fill { height: 100%; background-color: var(--fruhlingsgrun); }
+        .humor-text { font-size: 11px; font-style: italic; color: #666; }
+        .winner { background-color: var(--sieg) !important; color: white !important; }
+        .loser { background-color: var(--niederlage) !important; color: white !important; }
+        .winner .stat-icon, .loser .stat-icon { stroke: white; }
+        .winner .humor-text, .loser .humor-text { color: #fff; opacity: 0.9; }
+        .controls { margin-top: 10px; width: 100%; max-width: 350px; text-align: center; display: none; }
+        .game-button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--sommergrun);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .game-button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        #next-btn {
+            width: 50%;
+            max-width: 200px;
+            padding: 10px;
+            font-size: 14px;
+            margin: 15px auto;
+            display: none;
+        }
+        #message {
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 8px;
+            min-height: 20px;
+        }
+        .turn-indicator {
+            background: var(--akzent);
+            color: var(--schwarz);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .multiplayer-info {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 350px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .player-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        .player-chip.active {
+            background: var(--akzent);
+            color: var(--schwarz);
+            font-weight: bold;
+        }
+        .player-chip.out { opacity: 0.4; text-decoration: line-through; }
+        .portrait-mini { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--sommergrun); overflow: hidden; margin-right: 8px; }
+        .portrait-mini img { width: 100%; height: 100%; object-fit: cover; }
+        .mini-card-layout { display: flex; align-items: center; margin-top: 5px; }
+        .opponents-area {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+        .opponent-card-wrapper { position: relative; }
+        .opponent-label {
+            position: absolute;
+            top: -8px; left: 10px;
+            background: var(--forstgrun);
+            color: white;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            z-index: 2;
+        }
+        .waiting-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(21, 71, 52, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: var(--fruhlingsgrun);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #game-over-screen {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(21, 71, 52, 0.95);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        .podium {
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .podium-place {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .podium-bar {
+            width: 80px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .place-1 .podium-bar { height: 120px; background: linear-gradient(to top, #FFD700, #FFA500); }
+        .place-2 .podium-bar { height: 90px; background: linear-gradient(to top, #C0C0C0, #A0A0A0); }
+        .place-3 .podium-bar { height: 70px; background: linear-gradient(to top, #CD7F32, #B87333); }
+        .podium-name {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .warning-box {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid var(--niederlage);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 0.85rem;
+        }
+        .warning-box strong {
+            color: #ff6b6b;
+        }
+        .sql-setup-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: left;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            color: #a8e6cf;
+        }
+        @media (min-width: 768px) {
+            .game-board { max-width: 700px; flex-direction: row; align-items: flex-start; margin-top: 20px; gap: 20px; }
+            .card { width: 300px; }
+            .opponents-area { max-width: 300px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="start-screen">
+    <img src="cover.png" alt="Forst-Supertrumpf Cover" onerror="this.src='https://via.placeholder.com/400x300?text=Forst-Supertrumpf'">
+    <h1 style="margin:0 0 5px 0; font-size:1.8rem;">Forst-Supertrumpf</h1>
+    <p style="margin:0 0 20px 0; opacity:0.8;">Das ultimative Forst-Quartett — jetzt mit Supabase!</p>
+
+    <input type="text" id="player-name" class="player-name-input" placeholder="Dein Name" maxlength="15" value="">
+
+    <div class="config-panel" id="config-panel">
+        <h3>🔧 Supabase Konfiguration</h3>
+        <p>Deine Supabase-Daten werden lokal im Browser gespeichert und nie auf GitHub hochgeladen.</p>
+        <input type="text" id="supabase-url" class="api-key-input" placeholder="Supabase URL (z.B. https://xyz.supabase.co)" value="">
+        <input type="text" id="supabase-key" class="api-key-input" placeholder="Anon Key (z.B. eyJ...)" value="" style="margin-top:8px;">
+        <button class="start-btn" onclick="saveConfig()" style="min-width:200px; margin-top:10px;">💾 Speichern & Verbinden</button>
+        <div class="hint" id="config-status"></div>
+
+        <div class="warning-box" style="margin-top:15px;">
+            <strong>⚠️ Wichtig: Datenbank-Setup</strong><br>
+            Du musst zuerst diese Tabellen in Supabase erstellen (SQL Editor → New Query):
+        </div>
+        <div class="sql-setup-box" id="sql-setup">
+-- 1. Raeume-Tabelle
+create table if not exists rooms (
+  code text primary key,
+  created_at timestamptz default now(),
+  status text default 'waiting',
+  host_id text,
+  current_player text,
+  round int default 1,
+  last_move jsonb,
+  winner text,
+  pot text[] default '{}',
+  eliminated text[] default '{}'
+);
+
+-- 2. Spieler-Tabelle
+create table if not exists room_players (
+  id text primary key,
+  room_code text references rooms(code) on delete cascade,
+  name text not null,
+  is_host boolean default false,
+  joined_at timestamptz default now(),
+  cards text[] default '{}',
+  card_count int default 0,
+  active boolean default true
+);
+
+-- 3. Realtime aktivieren
+alter publication supabase_realtime add table rooms;
+alter publication supabase_realtime add table room_players;
+
+-- 4. RLS-Policies (offen fuer Demo)
+alter table rooms enable row level security;
+alter table room_players enable row level security;
+
+create policy "Allow all" on rooms for all using (true) with check (true);
+create policy "Allow all" on room_players for all using (true) with check (true);
+        </div>
+    </div>
+
+    <div class="mode-selection" id="mode-selection" style="display:none;">
+        <button class="start-btn" onclick="selectMode('cpu')">🎮 Gegen CPU spielen</button>
+        <button class="start-btn secondary" onclick="showCreateRoom()">🏠 Raum erstellen</button>
+        <button class="start-btn secondary" onclick="showJoinRoom()">🔗 Raum beitreten</button>
+        <button class="start-btn danger" onclick="clearConfig()" style="min-width:200px; margin-top:15px; font-size:0.9rem;">🗑️ Supabase-Daten loeschen</button>
+    </div>
+</div>
+
+<div id="lobby-screen">
+    <div class="lobby-card">
+        <h2 style="margin:0 0 10px 0;">🏠 Dein Spielraum</h2>
+        <div style="font-size:0.9rem; opacity:0.8; margin-bottom:5px;">Raum-Code:</div>
+        <div class="room-code-display" id="room-code-display">----</div>
+        <div id="qrcode"></div>
+        <div class="share-url" id="share-url"></div>
+    </div>
+    <div class="lobby-card">
+        <h3 style="margin:0 0 15px 0;">👥 Spieler (<span id="player-count">1</span>/4)</h3>
+        <div class="player-list" id="lobby-player-list"></div>
+    </div>
+    <button class="start-btn" id="start-mp-btn" onclick="startMultiplayerGame()" style="min-width:200px;">🚀 Spiel starten</button>
+    <button class="start-btn secondary" onclick="leaveRoom()" style="min-width:200px; margin-top:10px;">❌ Abbrechen</button>
+</div>
+
+<div id="join-screen">
+    <div class="lobby-card">
+        <h2 style="margin:0 0 10px 0;">🔗 Raum beitreten</h2>
+        <p style="font-size:0.9rem; opacity:0.8;">Gib den 4-stelligen Code ein:</p>
+        <div class="code-inputs">
+            <input type="text" class="code-input" maxlength="1" id="code-1" oninput="moveCodeInput(1)" onkeydown="moveCodeBack(1)">
+            <input type="text" class="code-input" maxlength="1" id="code-2" oninput="moveCodeInput(2)" onkeydown="moveCodeBack(2)">
+            <input type="text" class="code-input" maxlength="1" id="code-3" oninput="moveCodeInput(3)" onkeydown="moveCodeBack(3)">
+            <input type="text" class="code-input" maxlength="1" id="code-4" oninput="moveCodeInput(4)" onkeydown="moveCodeBack(4)">
+        </div>
+        <button class="start-btn" onclick="joinRoom()" style="min-width:200px;">Beitreten</button>
+    </div>
+    <button class="start-btn secondary" onclick="backToStart()" style="min-width:200px; margin-top:10px;">← Zurueck</button>
+</div>
+
+<div class="waiting-overlay" id="waiting-overlay">
+    <div class="spinner"></div>
+    <h2 id="waiting-text">Warte auf Spieler...</h2>
+    <p id="waiting-sub">Die anderen Spieler muessen noch ihren Zug machen</p>
+</div>
+
+<div id="game-over-screen">
+    <h1>🏆 Spiel beendet!</h1>
+    <div class="podium" id="podium"></div>
+    <div id="final-ranking"></div>
+    <button class="start-btn" onclick="backToStart()" style="margin-top:20px;">Neues Spiel</button>
+</div>
+
+<div class="game-board" id="game-board">
+    <div class="opponents-area" id="opponents-area"></div>
+    <div id="player-area">
+        <div class="deck-info">
+            <span>Deine Karten:</span>
+            <span class="score-badge" id="p-count">--</span>
+        </div>
+        <div id="player-card-container"></div>
+    </div>
+</div>
+
+<div class="controls" id="game-controls">
+    <div class="multiplayer-info" id="multiplayer-info"></div>
+    <div class="turn-indicator" id="turn-indicator" style="display:none;">🎯 Du bist dran!</div>
+    <div id="message">↑ Waehle einen Wert ↑</div>
+    <button id="next-btn" class="game-button" style="display:none;" onclick="nextRound()">Naechste Runde</button>
+</div>
+
+<script>
+
+// ===== SUPABASE CLIENT =====
+let supabase = null;
+let realtimeRoomChannel = null;
+let realtimePlayersChannel = null;
+
+function getStoredConfig() {
+    try {
+        const stored = localStorage.getItem('trumpf_supabase_config');
+        if (stored) return JSON.parse(stored);
+    } catch(e) { console.warn('localStorage Fehler:', e); }
+    return null;
+}
+
+function saveConfig() {
+    const url = document.getElementById('supabase-url').value.trim();
+    const key = document.getElementById('supabase-key').value.trim();
+
+    if (!url || !key) {
+        document.getElementById('config-status').textContent = '❌ Bitte beide Felder ausfuellen!';
+        document.getElementById('config-status').style.color = '#ff6b6b';
+        return;
+    }
+
+    if (!url.startsWith('https://')) {
+        document.getElementById('config-status').textContent = '❌ URL muss mit https:// beginnen!';
+        document.getElementById('config-status').style.color = '#ff6b6b';
+        return;
+    }
+
+    const config = { url, key };
+
+    try {
+        localStorage.setItem('trumpf_supabase_config', JSON.stringify(config));
+        document.getElementById('config-status').textContent = '✅ Gespeichert! Initialisiere Supabase...';
+        document.getElementById('config-status').style.color = '#91ae2d';
+
+        initSupabase(config);
+
+        setTimeout(() => {
+            document.getElementById('config-panel').style.display = 'none';
+            document.getElementById('mode-selection').style.display = 'flex';
+        }, 1000);
+    } catch(e) {
+        document.getElementById('config-status').textContent = '❌ Fehler: ' + e.message;
+        document.getElementById('config-status').style.color = '#ff6b6b';
+    }
+}
+
+function clearConfig() {
+    if (confirm('Moechtest du die gespeicherten Supabase-Daten wirklich loeschen?')) {
+        localStorage.removeItem('trumpf_supabase_config');
+        location.reload();
+    }
+}
+
+function initSupabase(config) {
+    try {
+        supabase = supabaseJs.createClient(config.url, config.key, {
+            realtime: {
+                params: { eventsPerSecond: 10 },
+            },
+        });
+        console.log("Supabase initialisiert");
+        return true;
+    } catch(e) {
+        console.error("Supabase Fehler:", e);
+        document.getElementById('config-status').textContent = '❌ Supabase Fehler: ' + e.message;
+        document.getElementById('config-status').style.color = '#ff6b6b';
+        return false;
+    }
+}
+
+function checkStoredConfig() {
+    const stored = getStoredConfig();
+    if (stored && stored.url && stored.key) {
+        document.getElementById('config-panel').style.display = 'none';
+        document.getElementById('mode-selection').style.display = 'flex';
+        initSupabase(stored);
+    } else {
+        document.getElementById('config-panel').style.display = 'block';
+        document.getElementById('mode-selection').style.display = 'none';
+        document.getElementById('config-status').textContent = 'Gib deine Supabase URL und den Anon Key ein.';
+    }
+}
+
+
+// ===== GAME DATA =====
+const iconMap = {
+    "OUTDOOR-ANTEIL": "tree-pine",
+    "BUEROAKRATIE-LEVEL": "file-text",
+    "TECHNIK-AFFINITAET": "settings",
+    "KALORIENVERBRAUCH": "flame",
+    "PUBLIKUMSVERKEHR": "users"
+};
+
+const mitarbeiterDaten = [
+    { titel: "Forstwirte", bildUrl: "forstwirt.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:98, t:"Regen ist fluessiger Sonnenschein"}, {l:"BUEROAKRATIE-LEVEL", v:14, t:"Nur das Noetigste"}, {l:"TECHNIK-AFFINITAET", v:64, t:"Motorsaegenchirurg"}, {l:"KALORIENVERBRAUCH", v:96, t:"Mischung aus Schwarzenegger & Usain Bolt"}, {l:"PUBLIKUMSVERKEHR", v:19, t:"Meist nur Pilzsammler"}], special: "Kettenwechsel im Blindflug" },
+    { titel: "Forstamtsleitung", bildUrl: "leiter.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:26, t:"Dienstfahrt zu Beratungen"}, {l:"BUEROAKRATIE-LEVEL", v:94, t:"Unterschriften-Marathon"}, {l:"TECHNIK-AFFINITAET", v:49, t:"Hofft auf Videokonferenz ohne Echo"}, {l:"KALORIENVERBRAUCH", v:39, t:"Tennisarm vom Telefonieren"}, {l:"PUBLIKUMSVERKEHR", v:89, t:"Krisenmanagement & Grussworte"}], special: "Diplomatisches Schweigen" },
+    { titel: "Revierleitung", bildUrl: "foerster.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:87, t:"Revierrunden"}, {l:"BUEROAKRATIE-LEVEL", v:61, t:"Wer schreibt, der bleibt"}, {l:"TECHNIK-AFFINITAET", v:76, t:"Reviertablet-Profi"}, {l:"KALORIENVERBRAUCH", v:74, t:"Kilometerfresser im Revier"}, {l:"PUBLIKUMSVERKEHR", v:81, t:"Brennholzkunden bespaessen"}], special: "Baumschaetzung auf 2 cm genau" },
+    { titel: "Sachbearbeitung", bildUrl: "sachbearbeiter.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:11, t:"Betriebsausflug & Sommerfest"}, {l:"BUEROAKRATIE-LEVEL", v:99, t:"Kennt jede Richtlinie"}, {l:"TECHNIK-AFFINITAET", v:71, t:"Zehnfingersystem-Akrobat"}, {l:"KALORIENVERBRAUCH", v:29, t:"Nervennahrung: Keksdose"}, {l:"PUBLIKUMSVERKEHR", v:62, t:"Telefon-Dauerschleife"}], special: "Aktenzeichen-Gedaechtnis" },
+    { titel: "Finanzen & Controlling", bildUrl: "finanzer.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:6, t:"Zahlen statt Baeume"}, {l:"BUEROAKRATIE-LEVEL", v:89, t:"Haushaltsstellen-Biotop"}, {l:"TECHNIK-AFFINITAET", v:91, t:"Excel-Magier"}, {l:"KALORIENVERBRAUCH", v:24, t:"Maximale Konzentration"}, {l:"PUBLIKUMSVERKEHR", v:14, t:"Zahlen sprechen eigene Sprache"}], special: "Budget-Rettung in letzter Sekunde" },
+    { titel: "IT", bildUrl: "it.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:16, t:"Aus dem Fenster gucken zaehlt"}, {l:"BUEROAKRATIE-LEVEL", v:56, t:"Tickets schreiben"}, {l:"TECHNIK-AFFINITAET", v:100, t:"Binary is my Mother Tongue"}, {l:"KALORIENVERBRAUCH", v:21, t:"Gehirnzellen-Akrobatik"}, {l:"PUBLIKUMSVERKEHR", v:41, t:"'Haben Sie schon neu gestartet?'"}], special: "Server-Wiederbelebung" },
+    { titel: "Recht", bildUrl: "jurist.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:13, t:"Gerichtstermine"}, {l:"BUEROAKRATIE-LEVEL", v:97, t:"Drei Nebenssaetze pro Satz"}, {l:"TECHNIK-AFFINITAET", v:38, t:"Papier ist rechtssicherer"}, {l:"KALORIENVERBRAUCH", v:73, t:"Paragrafenreiten haelt fit"}, {l:"PUBLIKUMSVERKEHR", v:51, t:"Anwaltsbrief-Kommunikation"}], special: "Einspruch gegen alles" },
+    { titel: "Personalmanagement", bildUrl: "personal.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:21, t:"Recruiting-Events"}, {l:"BUEROAKRATIE-LEVEL", v:86, t:"Personalakten & TV-L"}, {l:"TECHNIK-AFFINITAET", v:59, t:"HR-Software laeuft"}, {l:"KALORIENVERBRAUCH", v:44, t:"Viel reden"}, {l:"PUBLIKUMSVERKEHR", v:96, t:"Bewerber-Interviews"}], special: "Menschenkenntnis-Superkraft" },
+    { titel: "Maschinist", bildUrl: "maschinist.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:97, t:"Im Cockpit mitten im Wald"}, {l:"BUEROAKRATIE-LEVEL", v:31, t:"Serviceheft-Pflege"}, {l:"TECHNIK-AFFINITAET", v:98, t:"Zwei Joysticks und 50 Knoepfe gleichzeitig"}, {l:"KALORIENVERBRAUCH", v:47, t:"Konzentration pur"}, {l:"PUBLIKUMSVERKEHR", v:9, t:"Verirrte Pilzsammler"}], special: "Millimeterarbeit mit 20 Tonnen" },
+    { titel: "Berufsjaeger", bildUrl: "jaeger.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:94, t:"Kennt jeden Wechsel"}, {l:"BUEROAKRATIE-LEVEL", v:42, t:"Abschusslisten"}, {l:"TECHNIK-AFFINITAET", v:57, t:"Waermebildprofi"}, {l:"KALORIENVERBRAUCH", v:81, t:"Pirschen haelt fit"}, {l:"PUBLIKUMSVERKEHR", v:33, t:"Rehe zaehlen als Publikum"}], special: "Geraeuschlose Fortbewegung" },
+    { titel: "OEa", bildUrl: "oea.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:46, t:"Der Wald fotografiert sich nicht selbst"}, {l:"BUEROAKRATIE-LEVEL", v:64, t:"Freigabeprozesse"}, {l:"TECHNIK-AFFINITAET", v:88, t:"Ob Print, ob Digital – egal!"}, {l:"KALORIENVERBRAUCH", v:59, t:"Staendig auf Events"}, {l:"PUBLIKUMSVERKEHR", v:92, t:"Laesst sich nicht vermeiden"}], special: "Kahlschlag positiv formulieren" },
+    { titel: "Hund", bildUrl: "hund.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:100, t:"Kein Bueroschluessel"}, {l:"BUEROAKRATIE-LEVEL", v:1, t:"Frisst Hausordnung"}, {l:"TECHNIK-AFFINITAET", v:2, t:"Analoge Jagdinstinkte"}, {l:"KALORIENVERBRAUCH", v:89, t:"Dauerwedeln"}, {l:"PUBLIKUMSVERKEHR", v:99, t:"Bei allen beliebt"}], special: "Schlechte Laune wegschnueffeln" },
+    { titel: "Vorstand", bildUrl: "vorstand.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:9, t:"Parkplatz bis Tuer"}, {l:"BUEROAKRATIE-LEVEL", v:84, t:"Noch alte Verwaltungsschule"}, {l:"TECHNIK-AFFINITAET", v:8, t:"E-Mails werden ausgedruckt"}, {l:"KALORIENVERBRAUCH", v:51, t:"Haendeschuetteln"}, {l:"PUBLIKUMSVERKEHR", v:93, t:"Networking-Profi"}], special: "20-Jahre-Strategien aus dem Hut zaubern" },
+    { titel: "Holzvermarktung", bildUrl: "vermarkter.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:31, t:"Polter-Slalom"}, {l:"BUEROAKRATIE-LEVEL", v:74, t:"Am liebsten Kaufvertraege"}, {l:"TECHNIK-AFFINITAET", v:61, t:"Angebotslisten pflegen"}, {l:"KALORIENVERBRAUCH", v:46, t:"Angebote schreiben"}, {l:"PUBLIKUMSVERKEHR", v:79, t:"Harte Verhandlungen"}], special: "Verkauft Kaeferfichte als Teakholz" },
+    { titel: "Arbeitssicherheit", bildUrl: "sicherheit.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:53, t:"Sucht Stolperfallen"}, {l:"BUEROAKRATIE-LEVEL", v:91, t:"Gefaehrdungsbeurteilungen"}, {l:"TECHNIK-AFFINITAET", v:83, t:"Maschinen-Sicherheit"}, {l:"KALORIENVERBRAUCH", v:56, t:"Gefahrenpotentiale testen"}, {l:"PUBLIKUMSVERKEHR", v:58, t:"Sicherheitsunterweisungen"}], special: "Antwortet: Gefahren lauern ueberall" },
+    { titel: "Versuchswesen", bildUrl: "forscher.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:59, t:"Zaehlt Tannennadeln"}, {l:"BUEROAKRATIE-LEVEL", v:87, t:"Statistiken des Grauens"}, {l:"TECHNIK-AFFINITAET", v:94, t:"Fernerkundungsbasierte Monitoringverfahren"}, {l:"KALORIENVERBRAUCH", v:78, t:"Forschen fordert"}, {l:"PUBLIKUMSVERKEHR", v:27, t:"Fachkongresse"}], special: "Weiss heute, was 2124 passiert" },
+    { titel: "Datenschutz", bildUrl: "datenschutz.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:4, t:"Wald hat keine Cookies"}, {l:"BUEROAKRATIE-LEVEL", v:98, t:"Einwilligungserklaerungen"}, {l:"TECHNIK-AFFINITAET", v:79, t:"Sucht Datenlecks"}, {l:"KALORIENVERBRAUCH", v:28, t:"Datenschutzschulungen"}, {l:"PUBLIKUMSVERKEHR", v:22, t:"Nur bei Datenschutzproblemen"}], special: "Antwortet: Das kommt darauf an" },
+    { titel: "Poststelle", bildUrl: "post.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:14, t:"Lange Flure"}, {l:"BUEROAKRATIE-LEVEL", v:83, t:"Frankierstempel-Pro"}, {l:"TECHNIK-AFFINITAET", v:32, t:"Hauptsache kein Papierstau"}, {l:"KALORIENVERBRAUCH", v:49, t:"Postwagen-Rallye"}, {l:"PUBLIKUMSVERKEHR", v:73, t:"Informationszentrale"}], special: "Umlaufmappen-Jongleur" },
+    { titel: "Pfoertner", bildUrl: "pfoertner.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:11, t:"Kontrollgaenge"}, {l:"BUEROAKRATIE-LEVEL", v:59, t:"Besucherbuch-Waechter"}, {l:"TECHNIK-AFFINITAET", v:48, t:"Videoueberwachung"}, {l:"KALORIENVERBRAUCH", v:31, t:"Geduldsweltmeister"}, {l:"PUBLIKUMSVERKEHR", v:100, t:"Das Tor zur Welt"}], special: "Weiss alles, verraet nichts" },
+    { titel: "Vergabe", bildUrl: "vergabe.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:3, t:"Papier darf nicht nass werden"}, {l:"BUEROAKRATIE-LEVEL", v:96, t:"Fristen-Waechter"}, {l:"TECHNIK-AFFINITAET", v:69, t:"Vergabeportal-Veteran"}, {l:"KALORIENVERBRAUCH", v:23, t:"Maximale Konzentration"}, {l:"PUBLIKUMSVERKEHR", v:18, t:"Lieber schriftlich"}], special: "Findet jeden Formfehler" },
+    { titel: "Azubi", bildUrl: "azubi.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:79, t:"Ausser Berufsschule"}, {l:"BUEROAKRATIE-LEVEL", v:11, t:"Berichtsheft-Fiktion"}, {l:"TECHNIK-AFFINITAET", v:96, t:"Smartphone-Support fuer den Meister"}, {l:"KALORIENVERBRAUCH", v:99, t:"Dauernd auf Achse"}, {l:"PUBLIKUMSVERKEHR", v:39, t:"Smalltalk-Koenig"}], special: "Ueberlebt die Wirren des Waldes" },
+    { titel: "Forst-Referendar", bildUrl: "referendar.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:81, t:"Pruefungsvorbereitung"}, {l:"BUEROAKRATIE-LEVEL", v:88, t:"Lernstress-Level 1000"}, {l:"TECHNIK-AFFINITAET", v:84, t:"Alles in der Cloud"}, {l:"KALORIENVERBRAUCH", v:71, t:"Forstamts-Wanderer"}, {l:"PUBLIKUMSVERKEHR", v:61, t:"Kommilitonen-Netzwerk"}], special: "Revolutionaere Ideen" },
+    { titel: "Forstinspektor-Anwaerter", bildUrl: "inspektor.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:84, t:"Hoehsaal bis Harvester"}, {l:"BUEROAKRATIE-LEVEL", v:76, t:"Lernt Kunst des Aktenvermerks"}, {l:"TECHNIK-AFFINITAET", v:81, t:"Laptop im Rucksack"}, {l:"KALORIENVERBRAUCH", v:69, t:"Immer auf dem Sprung"}, {l:"PUBLIKUMSVERKEHR", v:49, t:"Uebet Waldfuehrungen"}], special: "Waldgesetze rueckwaerts singen" },
+    { titel: "1000j. Ivenacker Eiche", bildUrl: "eiche.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:100, t:"Standorttreu seit 1024"}, {l:"BUEROAKRATIE-LEVEL", v:0, t:"Keine Geburtsurkunde"}, {l:"TECHNIK-AFFINITAET", v:1, t:"Gab es damals auch nicht"}, {l:"KALORIENVERBRAUCH", v:4, t:"Millimeter-Wachstum"}, {l:"PUBLIKUMSVERKEHR", v:98, t:"Selfie-Magnet"}], special: "Stoische Ruhe" },
+    { titel: "Wisent", bildUrl: "wisent.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:92, t:"Wetter egal"}, {l:"BUEROAKRATIE-LEVEL", v:2, t:"Wird ignoriert"}, {l:"TECHNIK-AFFINITAET", v:3, t:"Gras & Schatten"}, {l:"KALORIENVERBRAUCH", v:91, t:"Massiver Energieumsatz"}, {l:"PUBLIKUMSVERKEHR", v:78, t:"Sicherheitsabstand!"}], special: "Sanfter Riese" },
+    { titel: "Forstwirtschaftsmeister", bildUrl: "meister.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:86, t:"Theorie im Wald"}, {l:"BUEROAKRATIE-LEVEL", v:41, t:"Pruefungsfragen-Kenner"}, {l:"TECHNIK-AFFINITAET", v:83, t:"Wechselt Kette im Schlaf"}, {l:"KALORIENVERBRAUCH", v:84, t:"Lautstarke Ansagen"}, {l:"PUBLIKUMSVERKEHR", v:48, t:"Auzubis beschaeftigen"}], special: "Praezisionsfaellung auf 5 mm genau" },
+    { titel: "Waldpaedagogik", bildUrl: "padagoge.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:90, t:"Erklaert Kindern den Wald"}, {l:"BUEROAKRATIE-LEVEL", v:31, t:"Einverstaendniserklaerungen"}, {l:"TECHNIK-AFFINITAET", v:30, t:"Becherlupen & Bestimmungsapps"}, {l:"KALORIENVERBRAUCH", v:79, t:"Hinter Kindergruppen herrennen"}, {l:"PUBLIKUMSVERKEHR", v:97, t:"Ertraegt 50 Kinder gleichzeitig"}], special: "Chaos-Kontrolle im Unterholz" },
+    { titel: "Pferderueckung", bildUrl: "ruecker.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:93, t:"Da wo Maschinen versinken"}, {l:"BUEROAKRATIE-LEVEL", v:17, t:"Handschlag reicht"}, {l:"TECHNIK-AFFINITAET", v:7, t:"Analoges Arbeiten"}, {l:"KALORIENVERBRAUCH", v:97, t:"Kraftsport pur"}, {l:"PUBLIKUMSVERKEHR", v:42, t:"Wird gern bestaunt"}], special: "Pferdefluesterer" },
+    { titel: "Rueckepferd", bildUrl: "pferd.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:99, t:"Koppel oder Wald"}, {l:"BUEROAKRATIE-LEVEL", v:1, t:"Will nur Hafer"}, {l:"TECHNIK-AFFINITAET", v:0, t:"Analogfan"}, {l:"KALORIENVERBRAUCH", v:100, t:"Zieht wie ein Traktor"}, {l:"PUBLIKUMSVERKEHR", v:29, t:"Streicheleinheiten"}], special: "Allrad mit Eigenintelligenz" },
+    { titel: "Verwaltungsrat", bildUrl: "verwaltungsrat.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:4, t:"Wald nur auf Folien"}, {l:"BUEROAKRATIE-LEVEL", v:97, t:"Beschlussvorlagen"}, {l:"TECHNIK-AFFINITAET", v:62, t:"Protokoll-Profi"}, {l:"KALORIENVERBRAUCH", v:19, t:"Sitzfleisch-Weltmeister"}, {l:"PUBLIKUMSVERKEHR", v:11, t:"Verschlossene Tueren"}], special: "Kritische Fragen" },
+    { titel: "Personalrat", bildUrl: "personalrat.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:19, t:"Begehung bei Konflikten"}, {l:"BUEROAKRATIE-LEVEL", v:94, t:"Dienstvereinbarungen"}, {l:"TECHNIK-AFFINITAET", v:36, t:"Beschwerdemanagement"}, {l:"KALORIENVERBRAUCH", v:47, t:"Verhandlungsmarathons"}, {l:"PUBLIKUMSVERKEHR", v:91, t:"Anlaufstelle fuer alle"}], special: "Kompromiss-Meister" },
+    { titel: "Standortkartierung", bildUrl: "kartierer.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:91, t:"Boden fuehlen"}, {l:"BUEROAKRATIE-LEVEL", v:49, t:"Digitale Karten pflegen"}, {l:"TECHNIK-AFFINITAET", v:82, t:"GIS-Partner"}, {l:"KALORIENVERBRAUCH", v:76, t:"Bohrstock-Workout"}, {l:"PUBLIKUMSVERKEHR", v:14, t:"Selbstgespraeche"}], special: "Erkennt Bodentypen am Geschmack" },
+    { titel: "Baumschule", bildUrl: "baumschule.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:95, t:"Nie ohne meine Pflanzen"}, {l:"BUEROAKRATIE-LEVEL", v:39, t:"Herkunftszertifikate"}, {l:"TECHNIK-AFFINITAET", v:33, t:"Bewaesserungsanlage im Griff"}, {l:"KALORIENVERBRAUCH", v:94, t:"Tausend Kniebeugen"}, {l:"PUBLIKUMSVERKEHR", v:43, t:"Mit Pflanzen reden"}], special: "Kultiviert kultivieren" },
+    { titel: "Waldladen", bildUrl: "laden.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:13, t:"Hinterm Tresen"}, {l:"BUEROAKRATIE-LEVEL", v:67, t:"Inventur & Kassenstuerze"}, {l:"TECHNIK-AFFINITAET", v:42, t:"Kartenzahlung im Funkloch"}, {l:"KALORIENVERBRAUCH", v:33, t:"Wildsalami-Einstapeln"}, {l:"PUBLIKUMSVERKEHR", v:98, t:"Kunden-Versteher"}], special: "Botschafter des guten Geschmacks" },
+    { titel: "Waldgesundheit", bildUrl: "therapie.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:88, t:"Waldweg ist Buero"}, {l:"BUEROAKRATIE-LEVEL", v:42, t:"Kurse verwalten"}, {l:"TECHNIK-AFFINITAET", v:26, t:"Achtsamkeits-Apps"}, {l:"KALORIENVERBRAUCH", v:44, t:"Entschleunigung"}, {l:"PUBLIKUMSVERKEHR", v:93, t:"Gruppenarbeit"}], special: "Senkt Blutdruck per Handschlag" },
+    { titel: "Baumkletterer", bildUrl: "kletterer.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:99, t:"Boden optional"}, {l:"BUEROAKRATIE-LEVEL", v:21, t:"Seilpruefungen"}, {l:"TECHNIK-AFFINITAET", v:67, t:"Materialkunde"}, {l:"KALORIENVERBRAUCH", v:93, t:"Workout in 30 m Hoehe"}, {l:"PUBLIKUMSVERKEHR", v:35, t:"Staunende Zuschauer"}], special: "100 % Schwindelfrei" },
+    { titel: "Wolfsmanagement", bildUrl: "wolf.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:82, t:"Faehrtenlesen"}, {l:"BUEROAKRATIE-LEVEL", v:74, t:"Riss-Dokumentation"}, {l:"TECHNIK-AFFINITAET", v:86, t:"Wildkamera-Profi"}, {l:"KALORIENVERBRAUCH", v:53, t:"Adrenalin"}, {l:"PUBLIKUMSVERKEHR", v:45, t:"Diskussion am Zaun"}], special: "Nerven aus Drahtseilen" },
+    { titel: "Samendarre", bildUrl: "darre.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:29, t:"Zapfen & Hitze"}, {l:"BUEROAKRATIE-LEVEL", v:61, t:"Herkunftsnachweise"}, {l:"TECHNIK-AFFINITAET", v:82, t:"Trocknungsanlagen"}, {l:"KALORIENVERBRAUCH", v:54, t:"Sauna-Feeling"}, {l:"PUBLIKUMSVERKEHR", v:86, t:"Ausstellung zieht"}], special: "Genressource" },
+    { titel: "Wildmetzger", bildUrl: "metzger.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:8, t:"Kuehlkammer"}, {l:"BUEROAKRATIE-LEVEL", v:54, t:"Hygienevorschriften"}, {l:"TECHNIK-AFFINITAET", v:18, t:"Handwerk"}, {l:"KALORIENVERBRAUCH", v:82, t:"Beil schwingen"}, {l:"PUBLIKUMSVERKEHR", v:84, t:"Direktvermarktung"}], special: "Veredelung mit chirurgischer Praezision" },
+    { titel: "Inspektion", bildUrl: "inspektion.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:61, t:"Kilometerkoenig"}, {l:"BUEROAKRATIE-LEVEL", v:96, t:"Kontrolle der Kontrolle"}, {l:"TECHNIK-AFFINITAET", v:61, t:"Digitale Dokumentation"}, {l:"KALORIENVERBRAUCH", v:41, t:"Kontrollfreak"}, {l:"PUBLIKUMSVERKEHR", v:69, t:"Schaut gern mal vorbei"}], special: "Findet das Haar in der Suppe" },
+    { titel: "Wildwirkungsmonitoring", bildUrl: "monitoring.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:76, t:"Zaeune pruefen"}, {l:"BUEROAKRATIE-LEVEL", v:64, t:"Datenbanken"}, {l:"TECHNIK-AFFINITAET", v:74, t:"Datensammler"}, {l:"KALORIENVERBRAUCH", v:73, t:"Verbiss-Suche"}, {l:"PUBLIKUMSVERKEHR", v:46, t:"Jaegerlatein"}], special: "Baum vor lauter Rehen nicht sehen" },
+    { titel: "Forsteinrichtung", bildUrl: "einrichter.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:71, t:"Inventur"}, {l:"BUEROAKRATIE-LEVEL", v:86, t:"Alles erfassen"}, {l:"TECHNIK-AFFINITAET", v:88, t:"GIS-Experte"}, {l:"KALORIENVERBRAUCH", v:64, t:"Stichproben-Marathon"}, {l:"PUBLIKUMSVERKEHR", v:23, t:"Eher scheu"}], special: "Hat immer einen Plan" },
+    { titel: "Geschaeftsfuehrung GmbH", bildUrl: "gmbh.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:19, t:"Marktanalyse"}, {l:"BUEROAKRATIE-LEVEL", v:94, t:"Wirtschaftsplaene"}, {l:"TECHNIK-AFFINITAET", v:87, t:"Ingenieurleistungen"}, {l:"KALORIENVERBRAUCH", v:46, t:"Strategie"}, {l:"PUBLIKUMSVERKEHR", v:72, t:"Vertragsabschluesse"}], special: "Rendite-Rowdy" },
+    { titel: "Baumwipfelpfad", bildUrl: "pfad.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:100, t:"Jeden Tag oben"}, {l:"BUEROAKRATIE-LEVEL", v:38, t:"Statistiken"}, {l:"TECHNIK-AFFINITAET", v:31, t:"Kasse"}, {l:"KALORIENVERBRAUCH", v:12, t:"Statik halten"}, {l:"PUBLIKUMSVERKEHR", v:96, t:"Hoehenfans"}], special: "Der richtige Pfad" },
+    { titel: "Waldstiftung MV", bildUrl: "stiftung.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:77, t:"Projekte direkt im Wald verankern"}, {l:"BUEROAKRATIE-LEVEL", v:47, t:"Kleines Team, grosse Wirkung"}, {l:"TECHNIK-AFFINITAET", v:83, t:"Foerdermittel-Excel, Insta-Reels & Zukunftsideen"}, {l:"KALORIENVERBRAUCH", v:77, t:"Menschen bewegen"}, {l:"PUBLIKUMSVERKEHR", v:94, t:`"Komm wir machen das einfach"-Drive`}], special: "Begeistert Menschen fuer Wald und Zukunft" },
+    { titel: "Wisentreservat Damerow", bildUrl: "reservat.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:98, t:"Wildnis"}, {l:"BUEROAKRATIE-LEVEL", v:26, t:"Zuchtbuch"}, {l:"TECHNIK-AFFINITAET", v:51, t:"Live-Kameras"}, {l:"KALORIENVERBRAUCH", v:94, t:"Aesung"}, {l:"PUBLIKUMSVERKEHR", v:99, t:"Schaufuetterungen"}], special: "Touristen-Hotspot" },
+    { titel: "Nachhaltigkeitsbeauftragte", bildUrl: "nachhaltigkeit.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:23, t:"Schreibtisch"}, {l:"BUEROAKRATIE-LEVEL", v:79, t:"Berichte"}, {l:"TECHNIK-AFFINITAET", v:71, t:"CO2-Rechner"}, {l:"KALORIENVERBRAUCH", v:37, t:"Vorausschauen"}, {l:"PUBLIKUMSVERKEHR", v:59, t:"Ueberzeugung"}], special: "Idealistin" },
+    { titel: "Foerderung", bildUrl: "foerderung.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:13, t:"Kontrolle"}, {l:"BUEROAKRATIE-LEVEL", v:100, t:"Verwendungsnachweis"}, {l:"TECHNIK-AFFINITAET", v:44, t:"ELER-Datenbank"}, {l:"KALORIENVERBRAUCH", v:27, t:"Mausfinger-Krampf"}, {l:"PUBLIKUMSVERKEHR", v:76, t:"Hoffnungstraeger"}], special: "Geldregen-Beschwoerer" },
+    { titel: "Liegenschaften", bildUrl: "liegenschaften.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:29, t:"Grenzsteine"}, {l:"BUEROAKRATIE-LEVEL", v:99, t:"Grundbuch-Poesie"}, {l:"TECHNIK-AFFINITAET", v:71, t:"Digitale Flurkarten"}, {l:"KALORIENVERBRAUCH", v:39, t:"Akten-Wandern"}, {l:"PUBLIKUMSVERKEHR", v:86, t:"Streitschlichter"}], special: "Kennt jeden Quadratmeter" },
+    { titel: "Waldbrandzentrale", bildUrl: "brandzentrale.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:21, t:"Turm-Ausblick"}, {l:"BUEROAKRATIE-LEVEL", v:39, t:"Meldeketten"}, {l:"TECHNIK-AFFINITAET", v:99, t:"Fruehwarnsysteme"}, {l:"KALORIENVERBRAUCH", v:29, t:"Adrenalin"}, {l:"PUBLIKUMSVERKEHR", v:14, t:"Einsame Wacht"}], special: "Adleraugen-Modus" },
+    { titel: "Forsthoheit", bildUrl: "hoheit.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:25, t:"Beamtenbiotop"}, {l:"BUEROAKRATIE-LEVEL", v:77, t:"Papiertiger"}, {l:"TECHNIK-AFFINITAET", v:72, t:"Klickt schnell"}, {l:"KALORIENVERBRAUCH", v:17, t:"A+++"}, {l:"PUBLIKUMSVERKEHR", v:57, t:"Hoerer glueht"}], special: "Akten-Ninja" },
+    { titel: "neue Geschaeftsfelder", bildUrl: "geschaeftsfelder.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:26, t:"Wald-Yoga"}, {l:"BUEROAKRATIE-LEVEL", v:81, t:"Vertraege"}, {l:"TECHNIK-AFFINITAET", v:76, t:"Dashboard"}, {l:"KALORIENVERBRAUCH", v:46, t:"Brainstorming"}, {l:"PUBLIKUMSVERKEHR", v:89, t:"Start-up"}], special: "Monetarisierung des Mooses" },
+    { titel: "Ministerium", bildUrl: "ministerium.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:2, t:"Presse"}, {l:"BUEROAKRATIE-LEVEL", v:100, t:"Erlass-Maschine"}, {l:"TECHNIK-AFFINITAET", v:54, t:"Konferenz"}, {l:"KALORIENVERBRAUCH", v:14, t:"Sitzungen"}, {l:"PUBLIKUMSVERKEHR", v:87, t:"Parlament"}], special: "Richtlinienkompetenz" },
+    { titel: "Jugendwaldheim", bildUrl: "waldheim.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:100, t:"Gummistiefel"}, {l:"BUEROAKRATIE-LEVEL", v:66, t:"Belehrung"}, {l:"TECHNIK-AFFINITAET", v:19, t:"WLAN"}, {l:"KALORIENVERBRAUCH", v:89, t:"Kinder baendigen"}, {l:"PUBLIKUMSVERKEHR", v:96, t:"Essen?"}], special: "Heimweh-Heilung" },
+    { titel: "Wildschwein-Rotte", bildUrl: "schweine.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:100, t:"Heimat ist der Kessel"}, {l:"BUEROAKRATIE-LEVEL", v:0, t:"Ignoriert Schonzeiten"}, {l:"TECHNIK-AFFINITAET", v:1, t:"Ruessel statt Radar"}, {l:"KALORIENVERBRAUCH", v:92, t:"Umbruch-Weltmeister"}, {l:"PUBLIKUMSVERKEHR", v:13, t:"Nur bei Daemmerung"}], special: "Keine Ruecksicht auf Verluste" },
+    { titel: "Strategisches Management", bildUrl: "steuerung.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:7, t:"Waldspaziergang nur zur Visionierung"}, {l:"BUEROAKRATIE-LEVEL", v:92, t:"Zielvereinbarungen & Kennzahlen"}, {l:"TECHNIK-AFFINITAET", v:86, t:"Business Intelligence & Dashboards"}, {l:"KALORIENVERBRAUCH", v:34, t:"Gehirnschmalz-Verbrennung"}, {l:"PUBLIKUMSVERKEHR", v:49, t:"Interne Abstimmungsrunden"}], special: "Denkt in Baumgenerationen" },
+    { titel: "Gesundheitsmanagement", bildUrl: "gesundheit.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:18, t:"Bewegte Pause im Freien"}, {l:"BUEROAKRATIE-LEVEL", v:79, t:"BEM-Gespraeche & Gefaehrdungsanalysen"}, {l:"TECHNIK-AFFINITAET", v:53, t:"Ergonomie-Apps & Schrittzaehler"}, {l:"KALORIENVERBRAUCH", v:41, t:"Obstkorb-Logistik"}, {l:"PUBLIKUMSVERKEHR", v:88, t:"Immer ein offenes Ohr fuer alle"}], special: "Verkauft Treppensteigen als Erlebnissport" },
+    { titel: "Aus-, Fort- und Weiterbildung", bildUrl: "bildung.jpg", stats: [{l:"OUTDOOR-ANTEIL", v:43, t:"Zwischen Auswahlgespraechen und Ausbildungsmessen"}, {l:"BUEROAKRATIE-LEVEL", v:84, t:"Bewerbungsstapel"}, {l:"TECHNIK-AFFINITAET", v:77, t:"E-Learning & VR-Simulatoren"}, {l:"KALORIENVERBRAUCH", v:48, t:"Moderationskoffer schleppen"}, {l:"PUBLIKUMSVERKEHR", v:96, t:"Dauer-Networking mit Dozenten"}], special: "Wissen ist die beste Schutzausruestung" }
+];
+
+// ===== STATE =====
+let gameMode = 'cpu';
+let myPlayerId = null;
+let myPlayerName = '';
+let roomCode = null;
+let gameState = null;
+let localPlayerDeck = [];
+let canPlay = true;
+let isMyTurn = false;
+let roundResult = null;
+let playerDeck = [];
+let cpuDeck = [];
+
+// ===== UTILS =====
+function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
+}
+
+function getPlayerName() {
+    const name = document.getElementById('player-name').value.trim();
+    return name || 'Spieler ' + Math.floor(Math.random() * 999);
+}
+
+function showScreen(id) {
+    ['start-screen', 'lobby-screen', 'join-screen', 'game-board', 'game-controls', 'game-over-screen'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.style.display = 'none';
+    });
+    const target = document.getElementById(id);
+    if (target) {
+        if (id === 'game-board') target.style.display = 'flex';
+        else target.style.display = 'flex';
+    }
+    if (id === 'game-board' || id === 'game-controls') {
+        document.getElementById('game-controls').style.display = 'block';
+    }
+}
+
+
+// ===== NAVIGATION =====
+async function selectMode(mode) {
+    gameMode = mode;
+    myPlayerName = getPlayerName();
+    if (mode === 'cpu') {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-board').style.display = 'flex';
+        document.getElementById('game-controls').style.display = 'block';
+        document.getElementById('opponents-area').innerHTML = '<div id="cpu-side"><div id="cpu-card-container"></div></div>';
+        initGame();
+    }
+}
+
+async function showCreateRoom() {
+    myPlayerName = getPlayerName();
+    if (!supabase) {
+        alert('Supabase ist nicht initialisiert. Bitte gib zuerst deine Supabase-Daten ein.');
+        return;
+    }
+    roomCode = generateRoomCode();
+    myPlayerId = 'player_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+    try {
+        // Raum erstellen
+        const { error: roomError } = await supabase
+            .from('rooms')
+            .insert({
+                code: roomCode,
+                status: 'waiting',
+                host_id: myPlayerId,
+                current_player: myPlayerId,
+                round: 1,
+                pot: [],
+                eliminated: []
+            });
+
+        if (roomError) throw roomError;
+
+        // Spieler als Host einfuegen
+        const { error: playerError } = await supabase
+            .from('room_players')
+            .insert({
+                id: myPlayerId,
+                room_code: roomCode,
+                name: myPlayerName,
+                is_host: true,
+                cards: [],
+                card_count: 0,
+                active: true
+            });
+
+        if (playerError) throw playerError;
+
+        document.getElementById('room-code-display').textContent = roomCode;
+        const shareUrl = window.location.href.split('?')[0] + '?room=' + roomCode;
+        document.getElementById('share-url').textContent = shareUrl;
+
+        document.getElementById('qrcode').innerHTML = '';
+        new QRCode(document.getElementById('qrcode'), {
+            text: shareUrl,
+            width: 150,
+            height: 150,
+            colorDark: '#154734',
+            colorLight: '#ffffff'
+        });
+
+        showScreen('lobby-screen');
+        listenToRoom();
+    } catch(err) {
+        console.error('Fehler beim Erstellen des Raums:', err);
+        alert('Fehler beim Erstellen des Raums: ' + err.message);
+    }
+}
+
+async function showJoinRoom() {
+    myPlayerName = getPlayerName();
+    if (!supabase) {
+        alert('Supabase ist nicht initialisiert. Bitte gib zuerst deine Supabase-Daten ein.');
+        return;
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomFromUrl = urlParams.get('room');
+    if (roomFromUrl) {
+        document.getElementById('code-1').value = roomFromUrl[0] || '';
+        document.getElementById('code-2').value = roomFromUrl[1] || '';
+        document.getElementById('code-3').value = roomFromUrl[2] || '';
+        document.getElementById('code-4').value = roomFromUrl[3] || '';
+    }
+    showScreen('join-screen');
+}
+
+function moveCodeInput(n) {
+    const val = document.getElementById('code-' + n).value.toUpperCase();
+    document.getElementById('code-' + n).value = val;
+    if (val && n < 4) {
+        document.getElementById('code-' + (n + 1)).focus();
+    }
+}
+
+function moveCodeBack(n) {
+    if (event.key === 'Backspace' && !document.getElementById('code-' + n).value && n > 1) {
+        document.getElementById('code-' + (n - 1)).focus();
+    }
+}
+
+async function joinRoom() {
+    const code = [
+        document.getElementById('code-1').value,
+        document.getElementById('code-2').value,
+        document.getElementById('code-3').value,
+        document.getElementById('code-4').value
+    ].join('').toUpperCase();
+
+    if (code.length !== 4) {
+        alert('Bitte gib einen vollstaendigen 4-stelligen Code ein.');
+        return;
+    }
+
+    roomCode = code;
+    myPlayerId = 'player_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+    try {
+        // Pruefe ob Raum existiert und warte
+        const { data: room, error: roomError } = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('code', code)
+            .single();
+
+        if (roomError || !room) {
+            alert('Raum nicht gefunden. Pruefe den Code.');
+            return;
+        }
+        if (room.status !== 'waiting') {
+            alert('Das Spiel laeuft bereits oder der Raum ist geschlossen.');
+            return;
+        }
+
+        // Zaehle Spieler
+        const { data: players, error: countError } = await supabase
+            .from('room_players')
+            .select('id')
+            .eq('room_code', code);
+
+        if (countError) throw countError;
+
+        if (players.length >= 4) {
+            alert('Der Raum ist voll (max. 4 Spieler).');
+            return;
+        }
+
+        // Spieler hinzufuegen
+        const { error: insertError } = await supabase
+            .from('room_players')
+            .insert({
+                id: myPlayerId,
+                room_code: code,
+                name: myPlayerName,
+                is_host: false,
+                cards: [],
+                card_count: 0,
+                active: true
+            });
+
+        if (insertError) throw insertError;
+
+        gameMode = 'client';
+        showScreen('lobby-screen');
+        document.getElementById('room-code-display').textContent = roomCode;
+        document.getElementById('qrcode').style.display = 'none';
+        document.getElementById('share-url').style.display = 'none';
+        document.getElementById('start-mp-btn').style.display = 'none';
+        listenToRoom();
+    } catch(err) {
+        console.error('Fehler beim Beitreten:', err);
+        alert('Fehler beim Beitreten zum Raum: ' + err.message);
+    }
+}
+
+function listenToRoom() {
+    if (!supabase || !roomCode) return;
+
+    // Realtime: Hoere auf Aenderungen an rooms
+    realtimeRoomChannel = supabase
+        .channel('room_' + roomCode)
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'rooms', filter: 'code=eq.' + roomCode },
+            async (payload) => {
+                await updateLobbyAndGame();
+            }
+        )
+        .subscribe();
+
+    // Realtime: Hoere auf Aenderungen an room_players
+    realtimePlayersChannel = supabase
+        .channel('players_' + roomCode)
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'room_players', filter: 'room_code=eq.' + roomCode },
+            async (payload) => {
+                await updateLobbyAndGame();
+            }
+        )
+        .subscribe();
+
+    // Initial laden
+    updateLobbyAndGame();
+}
+
+async function updateLobbyAndGame() {
+    if (!roomCode || !supabase) return;
+
+    try {
+        // Raum-Daten laden
+        const { data: room, error: roomError } = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('code', roomCode)
+            .single();
+
+        if (roomError || !room) return;
+
+        // Spieler laden
+        const { data: players, error: playersError } = await supabase
+            .from('room_players')
+            .select('*')
+            .eq('room_code', roomCode)
+            .order('joined_at', { ascending: true });
+
+        if (playersError) return;
+
+        gameState = { ...room, players: {} };
+        players.forEach(p => {
+            gameState.players[p.id] = p;
+        });
+
+        // Lobby-Update
+        const playerList = document.getElementById('lobby-player-list');
+        if (playerList && document.getElementById('lobby-screen').style.display !== 'none') {
+            playerList.innerHTML = '';
+            document.getElementById('player-count').textContent = players.length;
+
+            players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                div.innerHTML = `
+                    <div class="player-avatar">${p.name.charAt(0).toUpperCase()}</div>
+                    <div class="player-name">${p.name}</div>
+                    <div class="player-status ${p.is_host ? 'host' : ''}">${p.is_host ? 'Host' : 'Spieler'}</div>
+                `;
+                playerList.appendChild(div);
+            });
+        }
+
+        // Spiel-Update
+        if (room.status === 'playing') {
+            if (document.getElementById('lobby-screen').style.display !== 'none') {
+                document.getElementById('lobby-screen').style.display = 'none';
+                document.getElementById('game-board').style.display = 'flex';
+                document.getElementById('game-controls').style.display = 'block';
+            }
+            updateMultiplayerGame(room, players);
+        }
+
+        if (room.status === 'finished') {
+            showGameOver(room, players);
+        }
+    } catch(e) {
+        console.error('Update Fehler:', e);
+    }
+}
+
+async function leaveRoom() {
+    if (supabase && myPlayerId && roomCode) {
+        await supabase.from('room_players').delete().eq('id', myPlayerId);
+
+        // Pruefe ob noch Spieler da sind
+        const { data: remaining } = await supabase
+            .from('room_players')
+            .select('id')
+            .eq('room_code', roomCode);
+
+        if (!remaining || remaining.length === 0) {
+            await supabase.from('rooms').delete().eq('code', roomCode);
+        }
+    }
+
+    cleanupRealtime();
+    roomCode = null;
+    myPlayerId = null;
+    gameState = null;
+    localPlayerDeck = [];
+    backToStart();
+}
+
+function cleanupRealtime() {
+    if (realtimeRoomChannel) {
+        supabase.removeChannel(realtimeRoomChannel);
+        realtimeRoomChannel = null;
+    }
+    if (realtimePlayersChannel) {
+        supabase.removeChannel(realtimePlayersChannel);
+        realtimePlayersChannel = null;
+    }
+}
+
+function backToStart() {
+    cleanupRealtime();
+    roomCode = null;
+    myPlayerId = null;
+    gameState = null;
+    localPlayerDeck = [];
+
+    document.getElementById('start-screen').style.display = 'flex';
+    document.getElementById('lobby-screen').style.display = 'none';
+    document.getElementById('join-screen').style.display = 'none';
+    document.getElementById('game-board').style.display = 'none';
+    document.getElementById('game-controls').style.display = 'none';
+    document.getElementById('game-over-screen').style.display = 'none';
+    document.getElementById('waiting-overlay').style.display = 'none';
+    document.getElementById('opponents-area').innerHTML = '';
+    document.getElementById('player-card-container').innerHTML = '';
+    document.getElementById('qrcode').style.display = 'block';
+    document.getElementById('share-url').style.display = 'block';
+    document.getElementById('start-mp-btn').style.display = 'block';
+
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById('code-' + i).value = '';
+    }
+
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+
+// ===== MULTIPLAYER GAME START =====
+async function startMultiplayerGame() {
+    if (!supabase || !roomCode) return;
+
+    try {
+        // Spieler laden
+        const { data: players, error: playersError } = await supabase
+            .from('room_players')
+            .select('*')
+            .eq('room_code', roomCode)
+            .order('joined_at', { ascending: true });
+
+        if (playersError) throw playersError;
+
+        const playerIds = players.map(p => p.id);
+
+        if (playerIds.length < 2) {
+            alert('Mindestens 2 Spieler noetig!');
+            return;
+        }
+
+        let cards = [...mitarbeiterDaten];
+        cards.sort(() => Math.random() - 0.5);
+
+        const cardsPerPlayer = Math.floor(cards.length / playerIds.length);
+        const pot = [];
+
+        // Karten verteilen
+        for (let i = 0; i < playerIds.length; i++) {
+            const start = i * cardsPerPlayer;
+            const end = start + cardsPerPlayer;
+            const playerCards = cards.slice(start, end).map(c => c.titel);
+
+            await supabase
+                .from('room_players')
+                .update({ 
+                    cards: playerCards,
+                    card_count: playerCards.length 
+                })
+                .eq('id', playerIds[i]);
+        }
+
+        const dealt = playerIds.length * cardsPerPlayer;
+        if (dealt < cards.length) {
+            pot.push(...cards.slice(dealt).map(c => c.titel));
+        }
+
+        // Raum auf playing setzen
+        await supabase
+            .from('rooms')
+            .update({
+                status: 'playing',
+                current_player: playerIds[0],
+                round: 1,
+                pot: pot,
+                eliminated: [],
+                last_move: null,
+                winner: null
+            })
+            .eq('code', roomCode);
+
+    } catch(err) {
+        console.error('Fehler beim Starten:', err);
+        alert('Fehler beim Starten des Spiels: ' + err.message);
+    }
+}
+
+function updateMultiplayerGame(room, players) {
+    if (!room) return;
+
+    const myPlayer = players.find(p => p.id === myPlayerId);
+    const myCards = myPlayer ? myPlayer.cards : [];
+
+    localPlayerDeck = myCards.map(titel => mitarbeiterDaten.find(c => c.titel === titel)).filter(c => c);
+
+    isMyTurn = room.current_player === myPlayerId;
+
+    const opponentsArea = document.getElementById('opponents-area');
+    opponentsArea.innerHTML = '';
+
+    players.forEach(p => {
+        if (p.id === myPlayerId) return;
+        const pCards = p.cards || [];
+        const isEliminated = room.eliminated && room.eliminated.includes(p.id);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'opponent-card-wrapper';
+        wrapper.innerHTML = `
+            <div class="opponent-label">${p.name} (${pCards.length})</div>
+            <div class="card opponent-hidden" data-opponent="${p.name}: ${pCards.length} Karten" 
+                 style="${isEliminated ? 'opacity:0.4;' : ''}"></div>
+        `;
+        opponentsArea.appendChild(wrapper);
+    });
+
+    const infoArea = document.getElementById('multiplayer-info');
+    infoArea.innerHTML = '';
+    players.forEach(p => {
+        const pCards = p.cards || [];
+        const isEliminated = room.eliminated && room.eliminated.includes(p.id);
+        const chip = document.createElement('div');
+        chip.className = 'player-chip' + (p.id === room.current_player ? ' active' : '') + (isEliminated ? ' out' : '');
+        chip.innerHTML = `<span>${p.name}</span><span>${pCards.length}</span>`;
+        infoArea.appendChild(chip);
+    });
+
+    document.getElementById('p-count').textContent = localPlayerDeck.length;
+
+    if (localPlayerDeck.length > 0) {
+        const disabled = !isMyTurn || room.last_move;
+        document.getElementById('player-card-container').innerHTML = createCardHTML(localPlayerDeck[0], false, null, disabled);
+    } else {
+        document.getElementById('player-card-container').innerHTML = '<div style="text-align:center;padding:20px;"><h3>Du hast keine Karten mehr!</h3></div>';
+    }
+
+    const turnInd = document.getElementById('turn-indicator');
+    if (isMyTurn && !room.last_move) {
+        turnInd.style.display = 'block';
+        turnInd.textContent = '🎯 Du bist dran! Waehle einen Wert!';
+        document.getElementById('message').textContent = '↑ Waehle einen Wert ↑';
+    } else if (room.last_move) {
+        turnInd.style.display = 'none';
+        const lastMove = room.last_move;
+        const mover = players.find(p => p.id === lastMove.player_id);
+        document.getElementById('message').textContent = `${mover ? mover.name : 'Spieler'} waehlte: ${lastMove.stat_label} (${lastMove.stat_value}%)`;
+    } else {
+        turnInd.style.display = 'block';
+        const currentP = players.find(p => p.id === room.current_player);
+        turnInd.textContent = `⏳ ${currentP ? currentP.name : 'Spieler'} ist dran...`;
+        document.getElementById('message').textContent = 'Warte auf den anderen Spieler...';
+    }
+
+    const waitingOverlay = document.getElementById('waiting-overlay');
+    if (!isMyTurn && !room.last_move) {
+        waitingOverlay.style.display = 'flex';
+        const currentP = players.find(p => p.id === room.current_player);
+        document.getElementById('waiting-text').textContent = 'Warte auf ' + (currentP ? currentP.name : 'Spieler') + '...';
+    } else {
+        waitingOverlay.style.display = 'none';
+    }
+
+    const nextBtn = document.getElementById('next-btn');
+    if (room.last_move && isMyTurn && room.last_move.evaluated) {
+        nextBtn.style.display = 'block';
+        nextBtn.textContent = 'Naechste Runde';
+        showRoundResult(room, players);
+    } else {
+        nextBtn.style.display = 'none';
+    }
+
+    lucide.createIcons();
+}
+
+function showRoundResult(room, players) {
+    const lastMove = room.last_move;
+    if (!lastMove) return;
+
+    const myCard = localPlayerDeck[0];
+    if (!myCard) return;
+
+    const statIndex = myCard.stats.findIndex(s => s.l === lastMove.stat_label);
+    if (statIndex === -1) return;
+
+    const myValue = myCard.stats[statIndex].v;
+    const pRows = document.querySelectorAll('#player-area .stat-row');
+
+    if (lastMove.player_id === myPlayerId) {
+        if (lastMove.winner === myPlayerId) {
+            if (pRows[statIndex]) pRows[statIndex].classList.add('winner');
+            document.getElementById('message').textContent = '🎉 Du gewinnst den Stich!';
+        } else if (lastMove.winner) {
+            if (pRows[statIndex]) pRows[statIndex].classList.add('loser');
+            const winner = players.find(p => p.id === lastMove.winner);
+            document.getElementById('message').textContent = `😞 ${winner ? winner.name : 'Gegner'} gewinnt mit ${lastMove.best_value}%`;
+        } else {
+            document.getElementById('message').textContent = '🤝 Gleichstand!';
+        }
+    } else {
+        const theirValue = lastMove.stat_value;
+        if (myValue > theirValue) {
+            if (pRows[statIndex]) pRows[statIndex].classList.add('winner');
+            document.getElementById('message').textContent = '🎉 Du gewinnst mit ' + myValue + '%!';
+        } else if (theirValue > myValue) {
+            if (pRows[statIndex]) pRows[statIndex].classList.add('loser');
+            document.getElementById('message').textContent = `😞 Du verlierst: ${myValue}% vs ${theirValue}%`;
+        } else {
+            document.getElementById('message').textContent = '🤝 Gleichstand: ' + myValue + '%!';
+        }
+    }
+}
+
+async function playTurnMP(statIndex) {
+    if (!isMyTurn || !supabase || !roomCode) return;
+
+    const myCard = localPlayerDeck[0];
+    if (!myCard) return;
+
+    const stat = myCard.stats[statIndex];
+
+    try {
+        await supabase
+            .from('rooms')
+            .update({
+                last_move: {
+                    player_id: myPlayerId,
+                    stat_label: stat.l,
+                    stat_value: stat.v,
+                    timestamp: Date.now(),
+                    evaluated: false
+                }
+            })
+            .eq('code', roomCode);
+
+        setTimeout(() => evaluateRound(), 1500);
+    } catch(e) {
+        console.error('Fehler beim Zug:', e);
+    }
+}
+
+async function evaluateRound() {
+    if (!supabase || !roomCode) return;
+
+    try {
+        // Lade aktuellen Zustand
+        const { data: room, error: roomError } = await supabase
+            .from('rooms')
+            .select('*')
+            .eq('code', roomCode)
+            .single();
+
+        if (roomError || !room || !room.last_move || room.last_move.evaluated) return;
+
+        const { data: players, error: playersError } = await supabase
+            .from('room_players')
+            .select('*')
+            .eq('room_code', roomCode);
+
+        if (playersError) return;
+
+        const lastMove = room.last_move;
+        let bestValue = -1;
+        let winner = null;
+        let isTie = false;
+        const allCards = {};
+
+        players.forEach(p => {
+            if (room.eliminated && room.eliminated.includes(p.id)) return;
+            const cards = p.cards || [];
+            if (cards.length === 0) return;
+
+            const cardData = mitarbeiterDaten.find(c => c.titel === cards[0]);
+            if (!cardData) return;
+
+            const stat = cardData.stats.find(s => s.l === lastMove.stat_label);
+            if (!stat) return;
+
+            allCards[p.id] = { value: stat.v, card: cards[0] };
+
+            if (stat.v > bestValue) {
+                bestValue = stat.v;
+                winner = p.id;
+                isTie = false;
+            } else if (stat.v === bestValue) {
+                isTie = true;
+            }
+        });
+
+        // Updates vorbereiten
+        const updates = { last_move: { ...lastMove, evaluated: true, best_value: bestValue } };
+        const newEliminated = [...(room.eliminated || [])];
+        let newPot = [...(room.pot || [])];
+
+        if (isTie) {
+            // Gleichstand: Karten in den Pot
+            players.forEach(p => {
+                if (room.eliminated && room.eliminated.includes(p.id)) return;
+                const cards = p.cards || [];
+                if (cards.length > 0 && allCards[p.id]) {
+                    newPot.push(allCards[p.id].card);
+                }
+            });
+            updates.last_move.winner = null;
+            updates.pot = newPot;
+
+            // Karten von allen entfernen
+            for (const p of players) {
+                if (room.eliminated && room.eliminated.includes(p.id)) continue;
+                const cards = p.cards || [];
+                if (cards.length > 0) {
+                    const newCards = cards.slice(1);
+                    await supabase
+                        .from('room_players')
+                        .update({ cards: newCards, card_count: newCards.length })
+                        .eq('id', p.id);
+                    if (newCards.length === 0 && !newEliminated.includes(p.id)) {
+                        newEliminated.push(p.id);
+                    }
+                }
+            }
+        } else {
+            // Gewinner bekommt alle Karten
+            const winnerPlayer = players.find(p => p.id === winner);
+            if (!winnerPlayer) return;
+
+            let newWinnerCards = [...winnerPlayer.cards.slice(1)];
+
+            players.forEach(p => {
+                if (room.eliminated && room.eliminated.includes(p.id)) return;
+                const cards = p.cards || [];
+                if (cards.length > 0 && p.id !== winner) {
+                    newWinnerCards.push(cards[0]);
+                }
+            });
+
+            newPot.forEach(c => newWinnerCards.push(c));
+            newPot = [];
+
+            await supabase
+                .from('room_players')
+                .update({ cards: newWinnerCards, card_count: newWinnerCards.length })
+                .eq('id', winner);
+
+            // Karten von Verlierern entfernen
+            players.forEach(async p => {
+                if (p.id === winner) return;
+                if (room.eliminated && room.eliminated.includes(p.id)) return;
+                const cards = p.cards || [];
+                if (cards.length > 0) {
+                    const newCards = cards.slice(1);
+                    await supabase
+                        .from('room_players')
+                        .update({ cards: newCards, card_count: newCards.length })
+                        .eq('id', p.id);
+                }
+            });
+
+            updates.last_move.winner = winner;
+            updates.current_player = winner;
+            updates.pot = newPot;
+        }
+
+        // Eliminierte Spieler aktualisieren
+        for (const p of players) {
+            const currentP = players.find(pl => pl.id === p.id);
+            const remaining = currentP ? currentP.cards.length : 0;
+            if (remaining === 0 && !newEliminated.includes(p.id)) {
+                newEliminated.push(p.id);
+            }
+        }
+        updates.eliminated = newEliminated;
+
+        // Pruefe auf Spielende
+        const activePlayers = players.filter(p => !newEliminated.includes(p.id));
+        if (activePlayers.length <= 1) {
+            updates.status = 'finished';
+            updates.winner = activePlayers[0] ? activePlayers[0].id : winner;
+        }
+
+        updates.round = (room.round || 1) + 1;
+
+        await supabase
+            .from('rooms')
+            .update(updates)
+            .eq('code', roomCode);
+
+    } catch(e) {
+        console.error('Evaluierungsfehler:', e);
+    }
+}
+
+async function nextRound() {
+    if (!supabase || !roomCode) return;
+
+    try {
+        await supabase
+            .from('rooms')
+            .update({ last_move: null })
+            .eq('code', roomCode);
+    } catch(e) {
+        console.error('Fehler bei naechster Runde:', e);
+    }
+}
+
+function showGameOver(room, players) {
+    document.getElementById('game-board').style.display = 'none';
+    document.getElementById('game-controls').style.display = 'none';
+    document.getElementById('waiting-overlay').style.display = 'none';
+    document.getElementById('game-over-screen').style.display = 'flex';
+
+    const ranking = players
+        .map(p => ({
+            id: p.id,
+            name: p.name,
+            cards: (p.cards || []).length
+        }))
+        .sort((a, b) => b.cards - a.cards);
+
+    const podium = document.getElementById('podium');
+    podium.innerHTML = '';
+
+    const places = [
+        ranking[1] || null,
+        ranking[0] || null,
+        ranking[2] || null
+    ];
+
+    places.forEach((p, i) => {
+        if (!p) return;
+        const placeDiv = document.createElement('div');
+        placeDiv.className = 'podium-place place-' + (i === 0 ? 2 : i === 1 ? 1 : 3);
+        placeDiv.innerHTML = `
+            <div class="podium-bar">${i === 0 ? '2' : i === 1 ? '1' : '3'}</div>
+            <div class="podium-name">${p.name}</div>
+            <div style="font-size:0.75rem;opacity:0.8;">${p.cards} Karten</div>
+        `;
+        podium.appendChild(placeDiv);
+    });
+
+    const restDiv = document.getElementById('final-ranking');
+    restDiv.innerHTML = '<h3>Rangliste</h3>';
+    ranking.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding:8px; margin:4px 0; background:rgba(255,255,255,0.1); border-radius:8px;';
+        div.innerHTML = `<strong>#${i+1}</strong> ${p.name} — ${p.cards} Karten`;
+        restDiv.appendChild(div);
+    });
+}
+
+
+// ===== CPU MODE =====
+function initGame() {
+    let cards = [...mitarbeiterDaten];
+    cards.sort(() => Math.random() - 0.5);
+    playerDeck = cards.slice(0, Math.floor(cards.length / 2));
+    cpuDeck = cards.slice(Math.floor(cards.length / 2));
+    renderCPU();
+}
+
+function createCardHTML(data, isCpuHidden, filterIndex, disabled) {
+    if (isCpuHidden) {
+        const count = gameMode === 'cpu' ? cpuDeck.length : 0;
+        return `<div class="card opponent-hidden" data-opponent="Gegner hat: ${count} Karten"></div>`;
+    }
+    if (!data) return '';
+
+    const renderStat = (s, i, isMini) => {
+        const iconName = iconMap[s.l] || "circle";
+        const clickAttr = (!isMini && !disabled) ? `onclick="playTurn(${i})"` : '';
+        const disabledClass = disabled ? 'disabled' : '';
+        return `
+            <div class="stat-row ${disabledClass}" ${clickAttr}>
+                <div class="stat-header">
+                    <div class="stat-label-group">
+                        <i data-lucide="${iconName}" class="stat-icon"></i>
+                        <span>${s.l}</span>
+                    </div>
+                    <span>${s.v}%</span>
+                </div>
+                <div class="bar-container"><div class="bar-fill" style="width:${s.v}%"></div></div>
+                <div class="humor-text">${s.t}</div>
+            </div>
+        `;
+    };
+
+    if (filterIndex !== null) {
+        return `
+            <div class="card">
+                <div class="header"><h2>${data.titel}</h2></div>
+                <div class="mini-card-layout">
+                    <div class="portrait-mini"><img src="${data.bildUrl}" onerror="this.src='https://via.placeholder.com/50'"></div>
+                    <div style="flex-grow:1">${renderStat(data.stats[filterIndex], 0, true)}</div>
+                </div>
+            </div>`;
+    }
+
+    const statsHTML = data.stats.map((s, i) => renderStat(s, i, false)).join('');
+
+    return `
+        <div class="card">
+            <div class="header"><h2>${data.titel}</h2></div>
+            <div class="portrait-container"><div class="portrait-circle"><img src="${data.bildUrl}" onerror="this.src='https://via.placeholder.com/100'"></div></div>
+            <div class="stats-area">${statsHTML}</div>
+        </div>`;
+}
+
+function playTurn(statIndex) {
+    if (gameMode !== 'cpu') {
+        playTurnMP(statIndex);
+        return;
+    }
+
+    if (!canPlay) return;
+    canPlay = false;
+
+    const pCard = playerDeck[0];
+    const cCard = cpuDeck[0];
+    const pVal = pCard.stats[statIndex].v;
+    const cVal = cCard.stats[statIndex].v;
+
+    document.getElementById('cpu-card-container').innerHTML = createCardHTML(cCard, false, statIndex);
+
+    const pRows = document.querySelectorAll('#player-area .stat-row');
+    const cRows = document.querySelectorAll('#cpu-side .stat-row');
+    const msgEl = document.getElementById('message');
+
+    if (pVal > cVal) {
+        msgEl.textContent = "Stich gewonnen!";
+        pRows[statIndex].classList.add('winner');
+        if(cRows[0]) cRows[0].classList.add('loser');
+        playerDeck.push(playerDeck.shift(), cpuDeck.shift());
+    } else if (cVal > pVal) {
+        msgEl.textContent = "Stich verloren!";
+        pRows[statIndex].classList.add('loser');
+        if(cRows[0]) cRows[0].classList.add('winner');
+        cpuDeck.push(cpuDeck.shift(), playerDeck.shift());
+    } else {
+        msgEl.textContent = "Gleichstand!";
+        playerDeck.push(playerDeck.shift());
+        cpuDeck.push(cpuDeck.shift());
+    }
+
+    lucide.createIcons();
+    document.getElementById('next-btn').style.display = "block";
+    updateCountsCPU();
+}
+
+function nextRoundCPU() {
+    if (playerDeck.length === 0 || cpuDeck.length === 0) {
+        alert(playerDeck.length === 0 ? "Game Over!" : "Gewonnen!");
+        location.reload();
+        return;
+    }
+    canPlay = true;
+    document.getElementById('next-btn').style.display = "none";
+    document.getElementById('message').textContent = "↑ Waehle einen Wert ↑";
+    renderCPU();
+}
+
+function updateCountsCPU() {
+    const pBadge = document.getElementById('p-count');
+    pBadge.classList.add('pop');
+    pBadge.textContent = playerDeck.length;
+    setTimeout(() => { pBadge.classList.remove('pop'); }, 200);
+}
+
+function renderCPU() {
+    document.getElementById('player-card-container').innerHTML = createCardHTML(playerDeck[0], false, null, false);
+    document.getElementById('cpu-card-container').innerHTML = createCardHTML(null, true);
+    document.getElementById('p-count').innerText = playerDeck.length;
+    lucide.createIcons();
+}
+
+function nextRoundMP() {
+    nextRound();
+}
+
+// ===== INIT =====
+window.addEventListener('load', () => {
+    lucide.createIcons();
+    checkStoredConfig();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomFromUrl = urlParams.get('room');
+    if (roomFromUrl) {
+        document.getElementById('code-1').value = roomFromUrl[0] || '';
+        document.getElementById('code-2').value = roomFromUrl[1] || '';
+        document.getElementById('code-3').value = roomFromUrl[2] || '';
+        document.getElementById('code-4').value = roomFromUrl[3] || '';
+        if (supabase) showJoinRoom();
+    }
+});
+</script>
+</body>
+</html>
