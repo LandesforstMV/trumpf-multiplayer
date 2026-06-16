@@ -6,7 +6,7 @@
     <title>Forst-Supertrumpf Multiplayer (Supabase)</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/sb.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --forstgrun: #154734;
@@ -530,7 +530,7 @@
     </div>
 
     <div class="config-panel" id="config-panel">
-        <input type="hidden" id="supabase-url" value="https://tyfsafaidmyelzvxitfk.sb.co">
+        <input type="hidden" id="supabase-url" value="https://tyfsafaidmyelzvxitfk.supabase.co">
         <input type="hidden" id="supabase-key" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5ZnNhZmFpZG15ZWx6dnhpdGZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1ODI0NDgsImV4cCI6MjA5NzE1ODQ0OH0.hAQYJaM9BV8q1YhL5TPKNzWyxOBF_rXPweH1ef013bg">
         <div class="hint" id="config-status">Verbinde mit Supabase...</div>
     </div>
@@ -615,25 +615,53 @@ let realtimePlayersChannel = null;
 
 function initSupabase() {
     try {
-        if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+        // Supabase CDN exposes a global `supabase` object
+        // In browser: window.supabase or just supabase
+        const supabaseGlobal = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+
+        console.log("Prüfe Supabase SDK...", typeof supabaseGlobal, supabaseGlobal ? Object.keys(supabaseGlobal).slice(0,5) : 'null');
+
+        if (supabaseGlobal && typeof supabaseGlobal.createClient === 'function') {
             const url = document.getElementById('supabase-url').value;
             const key = document.getElementById('supabase-key').value;
             if (url && key) {
-                sb = window.supabase.createClient(url, key, {
+                sb = supabaseGlobal.createClient(url, key, {
                     realtime: { params: { eventsPerSecond: 10 } },
                 });
                 document.getElementById('config-status').textContent = '✅ Supabase verbunden';
-                console.log("Supabase verbunden");
+                console.log("Supabase verbunden! Client:", sb);
                 return true;
+            } else {
+                document.getElementById('config-status').textContent = '⚠️ URL oder Key fehlen';
+                console.warn("URL oder Key fehlen:", { url: !!url, key: !!key });
             }
         } else {
-            document.getElementById('config-status').textContent = '⚠️ Supabase SDK nicht geladen';
+            document.getElementById('config-status').textContent = '⏳ Supabase SDK wird geladen...';
+            console.log("Supabase SDK noch nicht verfügbar. Global:", typeof supabaseGlobal);
         }
     } catch(e) {
         console.error("Supabase Fehler:", e);
-        document.getElementById('config-status').textContent = '⚠️ Verbindungsfehler';
+        document.getElementById('config-status').textContent = '⚠️ Verbindungsfehler: ' + e.message;
     }
     return false;
+}
+
+// Retry-Mechanismus: Prüfe alle 500ms, ob Supabase SDK geladen ist
+let supabaseInitAttempts = 0;
+const maxSupabaseAttempts = 40; // 20 Sekunden max
+function tryInitSupabase() {
+    if (initSupabase()) {
+        console.log("Supabase erfolgreich initialisiert nach", supabaseInitAttempts, "Versuchen");
+        return;
+    }
+    supabaseInitAttempts++;
+    if (supabaseInitAttempts < maxSupabaseAttempts) {
+        console.log("Supabase noch nicht bereit, Versuch", supabaseInitAttempts, "/", maxSupabaseAttempts);
+        setTimeout(tryInitSupabase, 500);
+    } else {
+        document.getElementById('config-status').textContent = '❌ Supabase konnte nicht geladen werden. Prüfe die Browser-Konsole (F12) für Details.';
+        console.error("Supabase Initialisierung fehlgeschlagen nach", maxSupabaseAttempts, "Versuchen");
+    }
 }
 
 
@@ -1646,7 +1674,7 @@ function nextRoundMP() {
 // ===== INIT =====
 window.addEventListener('load', () => {
     lucide.createIcons();
-    initSupabase();
+    tryInitSupabase();
 
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
