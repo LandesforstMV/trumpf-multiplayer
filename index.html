@@ -7,6 +7,14 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+
+<script>
+    // Simple diagnostic
+    window.addEventListener('load', function() {
+        console.log('Supabase global check:', typeof window.supabase, typeof (typeof supabase !== 'undefined' ? supabase : undefined));
+    });
+</script>
     <style>
         :root {
             --forstgrun: #154734;
@@ -615,29 +623,41 @@ let realtimePlayersChannel = null;
 
 function initSupabase() {
     try {
-        // Supabase CDN exposes a global `supabase` object
-        // In browser: window.supabase or just supabase
-        const supabaseGlobal = window.supabase || (typeof supabase !== 'undefined' ? supabase : null);
+        // Supabase CDN exposes a global `supabase` object with named exports
+        // CORRECT usage: const { createClient } = supabase
+        let supabaseGlobal = null;
+        if (typeof window !== 'undefined' && window.supabase) {
+            supabaseGlobal = window.supabase;
+        } else if (typeof supabase !== 'undefined') {
+            supabaseGlobal = supabase;
+        } else if (typeof globalThis !== 'undefined' && globalThis.supabase) {
+            supabaseGlobal = globalThis.supabase;
+        }
 
-        console.log("Prüfe Supabase SDK...", typeof supabaseGlobal, supabaseGlobal ? Object.keys(supabaseGlobal).slice(0,5) : 'null');
+        console.log("Pruefe Supabase SDK...");
+        console.log("  window.supabase:", typeof window.supabase);
+        console.log("  global supabase:", typeof (typeof supabase !== 'undefined' ? supabase : undefined));
+        console.log("  Resolved keys:", supabaseGlobal ? Object.keys(supabaseGlobal).slice(0,10) : 'null');
 
-        if (supabaseGlobal && typeof supabaseGlobal.createClient === 'function') {
+        if (supabaseGlobal && supabaseGlobal.createClient) {
             const url = document.getElementById('supabase-url').value;
             const key = document.getElementById('supabase-key').value;
             if (url && key) {
-                sb = supabaseGlobal.createClient(url, key, {
+                // CORRECT: Destructure createClient from the supabase global
+                const { createClient } = supabaseGlobal;
+                sb = createClient(url, key, {
                     realtime: { params: { eventsPerSecond: 10 } },
                 });
                 document.getElementById('config-status').textContent = '✅ Supabase verbunden';
-                console.log("Supabase verbunden! Client:", sb);
+                console.log("Supabase verbunden!");
                 return true;
             } else {
                 document.getElementById('config-status').textContent = '⚠️ URL oder Key fehlen';
-                console.warn("URL oder Key fehlen:", { url: !!url, key: !!key });
+                console.warn("URL oder Key fehlen");
             }
         } else {
             document.getElementById('config-status').textContent = '⏳ Supabase SDK wird geladen...';
-            console.log("Supabase SDK noch nicht verfügbar. Global:", typeof supabaseGlobal);
+            console.log("Supabase SDK noch nicht verfuegbar");
         }
     } catch(e) {
         console.error("Supabase Fehler:", e);
@@ -645,10 +665,6 @@ function initSupabase() {
     }
     return false;
 }
-
-// Retry-Mechanismus: Prüfe alle 500ms, ob Supabase SDK geladen ist
-let supabaseInitAttempts = 0;
-const maxSupabaseAttempts = 40; // 20 Sekunden max
 function tryInitSupabase() {
     if (initSupabase()) {
         console.log("Supabase erfolgreich initialisiert nach", supabaseInitAttempts, "Versuchen");
@@ -1676,19 +1692,24 @@ function renderCPU() {
 
 
 // ===== INIT =====
-window.addEventListener('load', () => {
-    lucide.createIcons();
+// Try to init Supabase immediately (if already loaded) and on load
+if (document.readyState === 'complete') {
     tryInitSupabase();
+} else {
+    window.addEventListener('load', () => {
+        lucide.createIcons();
+        tryInitSupabase();
+    });
+}
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomFromUrl = urlParams.get('room');
-    if (roomFromUrl) {
-        document.getElementById('code-1').value = roomFromUrl[0] || '';
-        document.getElementById('code-2').value = roomFromUrl[1] || '';
-        document.getElementById('code-3').value = roomFromUrl[2] || '';
-        document.getElementById('code-4').value = roomFromUrl[3] || '';
-    }
-});
+const urlParams = new URLSearchParams(window.location.search);
+const roomFromUrl = urlParams.get('room');
+if (roomFromUrl) {
+    document.getElementById('code-1').value = roomFromUrl[0] || '';
+    document.getElementById('code-2').value = roomFromUrl[1] || '';
+    document.getElementById('code-3').value = roomFromUrl[2] || '';
+    document.getElementById('code-4').value = roomFromUrl[3] || '';
+}
 </script>
 </body>
 </html>
