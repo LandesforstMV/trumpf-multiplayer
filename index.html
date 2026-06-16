@@ -645,11 +645,15 @@ function initSupabase(config) {
             },
         });
         console.log("Supabase initialisiert");
+        // Always show buttons after init attempt (even if it fails, CPU mode still works)
+        document.getElementById('config-panel').style.display = 'none';
+        document.getElementById('mode-selection').style.display = 'flex';
         return true;
     } catch(e) {
         console.error("Supabase Fehler:", e);
-        document.getElementById('config-status').textContent = '❌ Supabase Fehler: ' + e.message;
-        document.getElementById('config-status').style.color = '#ff6b6b';
+        // Still show buttons so user can play CPU mode
+        document.getElementById('config-panel').style.display = 'none';
+        document.getElementById('mode-selection').style.display = 'flex';
         return false;
     }
 }
@@ -660,9 +664,11 @@ function checkStoredConfig() {
     const key = document.getElementById('supabase-key').value;
 
     if (url && key) {
+        initSupabase({ url, key });
+    } else {
+        // Fallback: show buttons anyway for CPU mode
         document.getElementById('config-panel').style.display = 'none';
         document.getElementById('mode-selection').style.display = 'flex';
-        initSupabase({ url, key });
     }
 }
 
@@ -1671,7 +1677,16 @@ function nextRoundMP() {
 // ===== INIT =====
 window.addEventListener('load', () => {
     lucide.createIcons();
-    checkStoredConfig();
+
+    // Wait for Supabase script to be ready, then auto-connect
+    function tryInit() {
+        if (typeof supabaseJs !== 'undefined' && supabaseJs.createClient) {
+            checkStoredConfig();
+        } else {
+            setTimeout(tryInit, 100);
+        }
+    }
+    tryInit();
 
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
@@ -1680,7 +1695,7 @@ window.addEventListener('load', () => {
         document.getElementById('code-2').value = roomFromUrl[1] || '';
         document.getElementById('code-3').value = roomFromUrl[2] || '';
         document.getElementById('code-4').value = roomFromUrl[3] || '';
-        if (supabase) showJoinRoom();
+        // showJoinRoom will be called after supabase is ready via checkStoredConfig flow
     }
 });
 </script>
