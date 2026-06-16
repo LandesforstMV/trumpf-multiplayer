@@ -6,7 +6,7 @@
     <title>Forst-Supertrumpf Multiplayer (Supabase)</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/sb.min.js"></script>
     <style>
         :root {
             --forstgrun: #154734;
@@ -530,7 +530,7 @@
     </div>
 
     <div class="config-panel" id="config-panel">
-        <input type="hidden" id="supabase-url" value="https://tyfsafaidmyelzvxitfk.supabase.co">
+        <input type="hidden" id="supabase-url" value="https://tyfsafaidmyelzvxitfk.sb.co">
         <input type="hidden" id="supabase-key" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5ZnNhZmFpZG15ZWx6dnhpdGZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1ODI0NDgsImV4cCI6MjA5NzE1ODQ0OH0.hAQYJaM9BV8q1YhL5TPKNzWyxOBF_rXPweH1ef013bg">
         <div class="hint" id="config-status">Verbinde mit Supabase...</div>
     </div>
@@ -601,70 +601,30 @@
 <script>
 
 // ===== SUPABASE CLIENT =====
-let supabase = null;
+let sb = null;
 let realtimeRoomChannel = null;
 let realtimePlayersChannel = null;
 
-function getStoredConfig() {
-    try {
-        const stored = localStorage.getItem('trumpf_supabase_config');
-        if (stored) return JSON.parse(stored);
-    } catch(e) { console.warn('localStorage Fehler:', e); }
-    return null;
-}
 
-function saveConfig() {
-    const url = document.getElementById('supabase-url').value.trim();
-    const key = document.getElementById('supabase-key').value.trim();
 
-    const config = { url, key };
 
-    try {
-        localStorage.setItem('trumpf_supabase_config', JSON.stringify(config));
-        initSupabase(config);
-        document.getElementById('config-panel').style.display = 'none';
-        document.getElementById('mode-selection').style.display = 'flex';
-    } catch(e) {
-        console.error('Supabase Fehler:', e);
-        alert('Verbindungsfehler: ' + e.message);
-    }
-}
 
-function clearConfig() {
-    if (confirm('Moechtest du die gespeicherten Supabase-Daten wirklich loeschen?')) {
-        localStorage.removeItem('trumpf_supabase_config');
-        location.reload();
-    }
-}
 
-function initSupabase(config) {
-    try {
-        if (typeof supabaseJs === 'undefined') {
-            console.warn('Supabase SDK nicht geladen');
-            return false;
-        }
-        supabase = supabaseJs.createClient(config.url, config.key, {
-            realtime: { params: { eventsPerSecond: 10 } },
-        });
-        console.log("Supabase initialisiert");
-        return true;
-    } catch(e) {
-        console.error("Supabase Fehler:", e);
-        return false;
-    }
-}
 
-function checkStoredConfig() {
+
+
+function initSupabase() {
     try {
         if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
             const url = document.getElementById('supabase-url').value;
             const key = document.getElementById('supabase-key').value;
             if (url && key) {
-                supabase = window.supabase.createClient(url, key, {
+                sb = window.supabase.createClient(url, key, {
                     realtime: { params: { eventsPerSecond: 10 } },
                 });
                 document.getElementById('config-status').textContent = '✅ Supabase verbunden';
                 console.log("Supabase verbunden");
+                return true;
             }
         } else {
             document.getElementById('config-status').textContent = '⚠️ Supabase SDK nicht geladen';
@@ -673,6 +633,7 @@ function checkStoredConfig() {
         console.error("Supabase Fehler:", e);
         document.getElementById('config-status').textContent = '⚠️ Verbindungsfehler';
     }
+    return false;
 }
 
 
@@ -809,7 +770,7 @@ async function selectMode(mode) {
 
 async function showCreateRoom() {
     myPlayerName = getPlayerName();
-    if (!supabase) {
+    if (!sb) {
         alert('Supabase ist nicht initialisiert. Bitte gib zuerst deine Supabase-Daten ein.');
         return;
     }
@@ -818,7 +779,7 @@ async function showCreateRoom() {
 
     try {
         // Raum erstellen
-        const { error: roomError } = await supabase
+        const { error: roomError } = await sb
             .from('rooms')
             .insert({
                 code: roomCode,
@@ -833,7 +794,7 @@ async function showCreateRoom() {
         if (roomError) throw roomError;
 
         // Spieler als Host einfuegen
-        const { error: playerError } = await supabase
+        const { error: playerError } = await sb
             .from('room_players')
             .insert({
                 id: myPlayerId,
@@ -870,7 +831,7 @@ async function showCreateRoom() {
 
 async function showJoinRoom() {
     myPlayerName = getPlayerName();
-    if (!supabase) {
+    if (!sb) {
         alert('Supabase ist nicht initialisiert. Bitte gib zuerst deine Supabase-Daten ein.');
         return;
     }
@@ -917,7 +878,7 @@ async function joinRoom() {
 
     try {
         // Pruefe ob Raum existiert und warte
-        const { data: room, error: roomError } = await supabase
+        const { data: room, error: roomError } = await sb
             .from('rooms')
             .select('*')
             .eq('code', code)
@@ -933,7 +894,7 @@ async function joinRoom() {
         }
 
         // Zaehle Spieler
-        const { data: players, error: countError } = await supabase
+        const { data: players, error: countError } = await sb
             .from('room_players')
             .select('id')
             .eq('room_code', code);
@@ -946,7 +907,7 @@ async function joinRoom() {
         }
 
         // Spieler hinzufuegen
-        const { error: insertError } = await supabase
+        const { error: insertError } = await sb
             .from('room_players')
             .insert({
                 id: myPlayerId,
@@ -974,10 +935,10 @@ async function joinRoom() {
 }
 
 function listenToRoom() {
-    if (!supabase || !roomCode) return;
+    if (!sb || !roomCode) return;
 
     // Realtime: Hoere auf Aenderungen an rooms
-    realtimeRoomChannel = supabase
+    realtimeRoomChannel = sb
         .channel('room_' + roomCode)
         .on('postgres_changes', 
             { event: '*', schema: 'public', table: 'rooms', filter: 'code=eq.' + roomCode },
@@ -988,7 +949,7 @@ function listenToRoom() {
         .subscribe();
 
     // Realtime: Hoere auf Aenderungen an room_players
-    realtimePlayersChannel = supabase
+    realtimePlayersChannel = sb
         .channel('players_' + roomCode)
         .on('postgres_changes', 
             { event: '*', schema: 'public', table: 'room_players', filter: 'room_code=eq.' + roomCode },
@@ -1003,11 +964,11 @@ function listenToRoom() {
 }
 
 async function updateLobbyAndGame() {
-    if (!roomCode || !supabase) return;
+    if (!roomCode || !sb) return;
 
     try {
         // Raum-Daten laden
-        const { data: room, error: roomError } = await supabase
+        const { data: room, error: roomError } = await sb
             .from('rooms')
             .select('*')
             .eq('code', roomCode)
@@ -1016,7 +977,7 @@ async function updateLobbyAndGame() {
         if (roomError || !room) return;
 
         // Spieler laden
-        const { data: players, error: playersError } = await supabase
+        const { data: players, error: playersError } = await sb
             .from('room_players')
             .select('*')
             .eq('room_code', roomCode)
@@ -1064,17 +1025,17 @@ async function updateLobbyAndGame() {
 }
 
 async function leaveRoom() {
-    if (supabase && myPlayerId && roomCode) {
-        await supabase.from('room_players').delete().eq('id', myPlayerId);
+    if (sb && myPlayerId && roomCode) {
+        await sb.from('room_players').delete().eq('id', myPlayerId);
 
         // Pruefe ob noch Spieler da sind
-        const { data: remaining } = await supabase
+        const { data: remaining } = await sb
             .from('room_players')
             .select('id')
             .eq('room_code', roomCode);
 
         if (!remaining || remaining.length === 0) {
-            await supabase.from('rooms').delete().eq('code', roomCode);
+            await sb.from('rooms').delete().eq('code', roomCode);
         }
     }
 
@@ -1088,11 +1049,11 @@ async function leaveRoom() {
 
 function cleanupRealtime() {
     if (realtimeRoomChannel) {
-        supabase.removeChannel(realtimeRoomChannel);
+        sb.removeChannel(realtimeRoomChannel);
         realtimeRoomChannel = null;
     }
     if (realtimePlayersChannel) {
-        supabase.removeChannel(realtimePlayersChannel);
+        sb.removeChannel(realtimePlayersChannel);
         realtimePlayersChannel = null;
     }
 }
@@ -1128,11 +1089,11 @@ function backToStart() {
 
 // ===== MULTIPLAYER GAME START =====
 async function startMultiplayerGame() {
-    if (!supabase || !roomCode) return;
+    if (!sb || !roomCode) return;
 
     try {
         // Spieler laden
-        const { data: players, error: playersError } = await supabase
+        const { data: players, error: playersError } = await sb
             .from('room_players')
             .select('*')
             .eq('room_code', roomCode)
@@ -1159,7 +1120,7 @@ async function startMultiplayerGame() {
             const end = start + cardsPerPlayer;
             const playerCards = cards.slice(start, end).map(c => c.titel);
 
-            await supabase
+            await sb
                 .from('room_players')
                 .update({ 
                     cards: playerCards,
@@ -1174,7 +1135,7 @@ async function startMultiplayerGame() {
         }
 
         // Raum auf playing setzen
-        await supabase
+        await sb
             .from('rooms')
             .update({
                 status: 'playing',
@@ -1318,7 +1279,7 @@ function showRoundResult(room, players) {
 }
 
 async function playTurnMP(statIndex) {
-    if (!isMyTurn || !supabase || !roomCode) return;
+    if (!isMyTurn || !sb || !roomCode) return;
 
     const myCard = localPlayerDeck[0];
     if (!myCard) return;
@@ -1326,7 +1287,7 @@ async function playTurnMP(statIndex) {
     const stat = myCard.stats[statIndex];
 
     try {
-        await supabase
+        await sb
             .from('rooms')
             .update({
                 last_move: {
@@ -1346,11 +1307,11 @@ async function playTurnMP(statIndex) {
 }
 
 async function evaluateRound() {
-    if (!supabase || !roomCode) return;
+    if (!sb || !roomCode) return;
 
     try {
         // Lade aktuellen Zustand
-        const { data: room, error: roomError } = await supabase
+        const { data: room, error: roomError } = await sb
             .from('rooms')
             .select('*')
             .eq('code', roomCode)
@@ -1358,7 +1319,7 @@ async function evaluateRound() {
 
         if (roomError || !room || !room.last_move || room.last_move.evaluated) return;
 
-        const { data: players, error: playersError } = await supabase
+        const { data: players, error: playersError } = await sb
             .from('room_players')
             .select('*')
             .eq('room_code', roomCode);
@@ -1416,7 +1377,7 @@ async function evaluateRound() {
                 const cards = p.cards || [];
                 if (cards.length > 0) {
                     const newCards = cards.slice(1);
-                    await supabase
+                    await sb
                         .from('room_players')
                         .update({ cards: newCards, card_count: newCards.length })
                         .eq('id', p.id);
@@ -1443,7 +1404,7 @@ async function evaluateRound() {
             newPot.forEach(c => newWinnerCards.push(c));
             newPot = [];
 
-            await supabase
+            await sb
                 .from('room_players')
                 .update({ cards: newWinnerCards, card_count: newWinnerCards.length })
                 .eq('id', winner);
@@ -1455,7 +1416,7 @@ async function evaluateRound() {
                 const cards = p.cards || [];
                 if (cards.length > 0) {
                     const newCards = cards.slice(1);
-                    await supabase
+                    await sb
                         .from('room_players')
                         .update({ cards: newCards, card_count: newCards.length })
                         .eq('id', p.id);
@@ -1486,7 +1447,7 @@ async function evaluateRound() {
 
         updates.round = (room.round || 1) + 1;
 
-        await supabase
+        await sb
             .from('rooms')
             .update(updates)
             .eq('code', roomCode);
@@ -1497,10 +1458,10 @@ async function evaluateRound() {
 }
 
 async function nextRound() {
-    if (!supabase || !roomCode) return;
+    if (!sb || !roomCode) return;
 
     try {
-        await supabase
+        await sb
             .from('rooms')
             .update({ last_move: null })
             .eq('code', roomCode);
@@ -1685,7 +1646,7 @@ function nextRoundMP() {
 // ===== INIT =====
 window.addEventListener('load', () => {
     lucide.createIcons();
-    checkStoredConfig();
+    initSupabase();
 
     const urlParams = new URLSearchParams(window.location.search);
     const roomFromUrl = urlParams.get('room');
